@@ -1,0 +1,89 @@
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Node modules
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build files
+dist/
+build/
+# ========================================
+# Iyaya Backend Environment Configuration
+# ========================================
+
+# ======================
+# Server Configuration
+# ======================
+PORT=5000
+NODE_ENV=development
+
+# ======================
+# Database Configuration
+# ======================
+# Local MongoDB Development
+MONGODB_URI=mongodb://localhost:27017/iyaya?retryWrites=true&w=majority
+
+# MongoDB Atlas (Production - Uncomment when deploying)
+# MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.emfxnqn.mongodb.net/iyaya?retryWrites=true&w=majority
+
+# ======================
+# Authentication
+# ======================
+JWT_SECRET=ecb938a178861cc6f6b209ef96d76118765f123c406852efe8b27ddfc492ae32
+JWT_EXPIRE=30d
+JWT_COOKIE_EXPIRE=30
+JWT_REFRESH_EXPIRE=90d
+
+# ======================
+# Security
+# ======================
+# Production Settings (Uncomment when deploying)
+# CORS_ORIGIN=https://yourdomain.com
+CORS_ORIGIN=http://localhost:3000  # Your frontend dev server
+# RATE_LIMIT_WINDOW=15
+# RATE_LIMIT_MAX=100
+# HTTPS_ENABLED=true
+# TRUST_PROXY=1
+# CSRF_PROTECTION=true
+
+# ======================
+# Geocoder Configuration
+# ======================
+GEOCODER_PROVIDER=mapquest
+GEOCODER_API_KEY=jpfRX8e7FoAPsCkka2rPIvRaYPQzANnA
+GEOCODER_CACHE_TTL=86400 # 24 hours in seconds
+
+# ======================
+# Email Service (Example)
+# ======================
+# SMTP_HOST=smtp.yourmail.com
+# SMTP_PORT=587
+# SMTP_USER=your@email.com
+# SMTP_PASS=yourpassword
+# EMAIL_FROM=no-reply@iyaya.com
+EMAIL_HOST=smtp.mailtrap.io
+EMAIL_PORT=2525
+EMAIL_USERNAME=rere.centno.swu@phinmaed.com
+EMAIL_PASSWORD=kNooCkk@0228
+EMAIL_FROM=no-reply@iyaya.com
+# ======================
+GOOGLE_APPLICATION_CREDENTIALS=iyaya-backend/serviceAccountKey.json
+# or
+FIREBASE_SERVICE_ACCOUNT_PATH=iyaya-backend/serviceAccountKey.json

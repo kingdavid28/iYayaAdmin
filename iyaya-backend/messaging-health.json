@@ -1,0 +1,15 @@
+{
+  "timestamp": "2025-09-20T01:22:39.951Z",
+  "messaging": {
+    "routes": "configured",
+    "controllers": "available",
+    "models": "defined",
+    "uploads": "ready",
+    "logs": "ready"
+  },
+  "dependencies": {
+    "winston": "installed",
+    "socketio": "installed",
+    "multer": "missing"
+  }
+}
