@@ -6,6 +6,25 @@ export interface FetchNotificationsOptions {
   search?: string;
 }
 
+export const NOTIFICATION_TYPES: NotificationType[] = [
+  'message',
+  'job_application',
+  'booking_request',
+  'booking_confirmed',
+  'booking_cancelled',
+  'review',
+  'payment',
+  'system',
+];
+
+export interface NotificationStats {
+  total: number;
+  unread: number;
+  targeted: number;
+  broadcasts: number;
+  perType: Record<NotificationType, number>;
+}
+
 const sanitizeSearchTerm = (term: string) =>
   term
     .trim()
@@ -15,7 +34,6 @@ const sanitizeSearchTerm = (term: string) =>
 interface NotificationRow {
   id: string;
   userId?: string | null;
-  user_id?: MaybeRelation<UserReference>;
   user?: MaybeRelation<UserReference>;
   type: NotificationType;
   title: string;
@@ -23,9 +41,7 @@ interface NotificationRow {
   data?: unknown;
   read?: boolean | null;
   createdAt?: string | null;
-  created_at?: string | null;
   updatedAt?: string | null;
-  updated_at?: string | null;
 }
 
 const resolveRelation = <T>(relation: MaybeRelation<T>): T | undefined => {
@@ -56,14 +72,14 @@ export const fetchNotifications = async (options: FetchNotificationsOptions = {}
       `
         id,
         userId:user_id,
-        user:user_id(name,email),
         type,
         title,
         message,
         data,
         read,
         createdAt:created_at,
-        updatedAt:updated_at
+        updatedAt:updated_at,
+        user:user_id(name,email)
       `
     )
     .order('created_at', { ascending: false });
@@ -88,13 +104,14 @@ export const fetchNotifications = async (options: FetchNotificationsOptions = {}
   const rows: NotificationRow[] = Array.isArray(data) ? data : data ? [data] : [];
 
   return rows.map(row => {
-    const user =
-      resolveRelation<UserReference>(row.user) ??
-      resolveRelation<UserReference>(row.user_id);
+    const user = resolveRelation<UserReference>(row.user);
+    const normalizedUserId = row.userId ?? user?.id ?? null;
+    const normalizedCreatedAt = row.createdAt ?? new Date().toISOString();
+    const normalizedUpdatedAt = row.updatedAt ?? undefined;
 
     return {
       id: row.id,
-      userId: row.userId ?? user?.id ?? '',
+      userId: normalizedUserId ?? undefined,
       userInfo: user
         ? {
             name: user.name ?? undefined,
@@ -106,8 +123,8 @@ export const fetchNotifications = async (options: FetchNotificationsOptions = {}
       message: row.message,
       data: parseData(row.data),
       read: row.read ?? false,
-      createdAt: row.createdAt ?? row.created_at ?? new Date().toISOString(),
-      updatedAt: row.updatedAt ?? row.updated_at ?? undefined,
+      createdAt: normalizedCreatedAt,
+      updatedAt: normalizedUpdatedAt,
     } satisfies NotificationItem;
   });
 };
@@ -163,4 +180,55 @@ export const deleteNotification = async (notificationId: string) => {
   if (error) {
     throw new Error(`Failed to delete notification: ${error.message}`);
   }
+};
+
+const runCountQuery = async (query: any, context: string): Promise<number> => {
+  const { count, error } = await query;
+  if (error) {
+    throw new Error(`Failed to fetch ${context}: ${error.message}`);
+  }
+  return count ?? 0;
+};
+
+export const fetchNotificationStats = async (): Promise<NotificationStats> => {
+  const selectOptions = { count: 'exact' as const, head: true };
+
+  const [total, unread, targeted, broadcasts] = await Promise.all([
+    runCountQuery(supabase.from('notifications').select('id', selectOptions), 'total notification count'),
+    runCountQuery(
+      supabase.from('notifications').select('id', selectOptions).eq('read', false),
+      'unread notification count',
+    ),
+    runCountQuery(
+      supabase.from('notifications').select('id', selectOptions).not('user_id', 'is', null),
+      'targeted notification count',
+    ),
+    runCountQuery(
+      supabase.from('notifications').select('id', selectOptions).is('user_id', null),
+      'broadcast notification count',
+    ),
+  ]);
+
+  const perTypeEntries = await Promise.all(
+    NOTIFICATION_TYPES.map(async type => {
+      const count = await runCountQuery(
+        supabase.from('notifications').select('id', selectOptions).eq('type', type),
+        `notification count for type ${type}`,
+      );
+      return [type, count] as const;
+    }),
+  );
+
+  const perType = perTypeEntries.reduce((acc, [type, count]) => {
+    acc[type] = count;
+    return acc;
+  }, {} as Record<NotificationType, number>);
+
+  return {
+    total,
+    unread,
+    targeted,
+    broadcasts,
+    perType,
+  } satisfies NotificationStats;
 };

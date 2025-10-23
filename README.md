@@ -517,3 +517,8 @@ This breakdown should help prioritize remaining work to align the app with the a
   Refresh README to reflect actual capabilities once the above are complete, and supply setup/testing steps. Provide a QA checklist for verifying admin CRUD, bulk operations, and audit logs.
 
 Executing these priorities will turn the app into a functional admin console that matches the advertised feature set while staying secure and auditable.
+
+
+https://github.com/kingdavid28/iYayaAdmin.git
+
+error failed to fetch child profiles: column children.medical_conditions does not exist

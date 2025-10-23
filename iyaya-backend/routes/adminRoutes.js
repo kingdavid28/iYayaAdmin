@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("../controllers/adminController");
+const adminChildrenController = require("../controllers/adminChildrenController");
 const { authenticate, authorize } = require("../middleware/auth");
 
 // Helper function to check if we're in development bypass mode
@@ -58,15 +59,24 @@ router.post("/bookings/:bookingId/cancel", adminController.cancelBooking);
 
 // Jobs management
 router.get("/jobs", adminController.listJobs);
+router.post("/jobs", adminController.createJob);
 router.get("/jobs/:id", adminController.getJobById);
+router.put("/jobs/:jobId", adminController.updateJob);
 router.patch("/jobs/:jobId/status", adminController.updateJobStatus);
 router.post("/jobs/:jobId/approve", adminController.approveJob);
 router.post("/jobs/:jobId/reject", adminController.rejectJob);
 router.post("/jobs/:jobId/cancel", adminController.cancelJob);
 router.post("/jobs/:jobId/complete", adminController.completeJob);
 router.post("/jobs/:jobId/reopen", adminController.reopenJob);
+router.delete("/jobs/:jobId", adminController.deleteJob);
 
 // Audit logs
 router.get("/audit", adminController.listAuditLogs);
+
+// Children management
+router.get("/children", adminChildrenController.listChildren);
+router.get("/children/:id", adminChildrenController.getChildById);
+router.patch("/children/:id", adminChildrenController.updateChild);
+router.delete("/children/:id", adminChildrenController.deleteChild);
 
 module.exports = router;

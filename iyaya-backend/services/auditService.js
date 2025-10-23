@@ -27,7 +27,7 @@ async function logAction({
       status,
       metadata
     });
-
+    console.log('[AUDIT] adminId being logged:', userId);
     return await AuditLogService.create({
       admin_id: userId,
       action,

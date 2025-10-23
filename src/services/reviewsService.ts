@@ -75,17 +75,13 @@ export const fetchReviews = async (options: FetchReviewsOptions = {}): Promise<R
     .select(
       `
         id,
-        bookingId:booking_id,
-        reviewerId:reviewer_id,
-        revieweeId:reviewee_id,
-        caregiverId:caregiver_id,
+        booking_id,
+        status,
+        moderation_note,
         rating,
         comment,
-        status,
-        createdAt:created_at,
-        updatedAt:updated_at,
-        reviewer:reviewer_id(id,name,email,role),
-        reviewee:reviewee_id(id,name,email,role),
+        created_at,
+        updated_at,
         caregiver:caregiver_id(id,name,email,role)
       `
     )
@@ -115,15 +111,13 @@ export const fetchReviews = async (options: FetchReviewsOptions = {}): Promise<R
 
     return {
       id: row.id,
-      bookingId: row.bookingId ?? row.booking_id ?? '',
-      reviewerId: row.reviewerId ?? reviewer?.id ?? '',
-      revieweeId: row.revieweeId ?? reviewee?.id ?? '',
-      caregiverId: row.caregiverId ?? caregiver?.id ?? null,
+      bookingId: row.booking_id ?? '',
+      caregiverId: caregiver?.id ?? null,
       rating: row.rating ?? 0,
       comment: row.comment ?? null,
       status: row.status ?? 'published',
-      createdAt: row.createdAt ?? row.created_at ?? new Date().toISOString(),
-      updatedAt: row.updatedAt ?? row.updated_at ?? new Date().toISOString(),
+      createdAt: row.created_at ?? new Date().toISOString(),
+      updatedAt: row.updated_at ?? new Date().toISOString(),
       reviewerInfo: {
         name: reviewer?.name ?? 'Unknown Reviewer',
         email: reviewer?.email ?? 'unknown@example.com',

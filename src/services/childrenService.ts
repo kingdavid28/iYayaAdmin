@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase';
 import type { ChildProfile } from '../types';
+import { adminApi } from './apiService';
 
 export interface FetchChildrenOptions {
   search?: string;
@@ -20,11 +21,10 @@ export const fetchChildren = async (options: FetchChildrenOptions = {}): Promise
         parentId:parent_id,
         parent:parent_id(id,name,email),
         name,
-        dateOfBirth:date_of_birth,
         gender,
         specialNeeds:special_needs,
         allergies,
-        medicalConditions:medical_conditions,
+        notes,
         emergencyContact:emergency_contact,
         createdAt:created_at,
         updatedAt:updated_at
@@ -47,6 +47,15 @@ export const fetchChildren = async (options: FetchChildrenOptions = {}): Promise
 
   return (data ?? []).map((row: any) => {
     const parent = Array.isArray(row.parent) ? row.parent[0] : row.parent;
+    let emergencyContact = row.emergencyContact ?? null;
+
+    if (typeof emergencyContact === 'string') {
+      try {
+        emergencyContact = JSON.parse(emergencyContact);
+      } catch (error) {
+        console.warn('[childrenService] Failed to parse emergency_contact JSON', error);
+      }
+    }
 
     return {
       id: row.id,
@@ -56,12 +65,10 @@ export const fetchChildren = async (options: FetchChildrenOptions = {}): Promise
         email: parent?.email ?? undefined,
       },
       name: row.name,
-      dateOfBirth: row.dateOfBirth,
-      gender: row.gender ?? undefined,
       specialNeeds: row.specialNeeds ?? undefined,
       allergies: row.allergies ?? undefined,
-      medicalConditions: row.medicalConditions ?? undefined,
-      emergencyContact: row.emergencyContact ?? null,
+      notes: row.notes ?? undefined,
+      emergencyContact,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     } satisfies ChildProfile;
@@ -69,25 +76,33 @@ export const fetchChildren = async (options: FetchChildrenOptions = {}): Promise
 };
 
 export const updateChildNotes = async (childId: string, existingContact: Record<string, any> | null, notes: string) => {
+  const trimmed = notes.trim();
   const updatedContact = {
     ...(existingContact ?? {}),
-    adminNotes: notes || null,
+    adminNotes: trimmed.length ? trimmed : null,
   };
 
   const { error } = await supabase
     .from('children')
-    .update({ emergency_contact: updatedContact })
+    .update({
+      notes: trimmed.length ? trimmed : null,
+      emergency_contact: updatedContact,
+    })
     .eq('id', childId);
 
   if (error) {
     throw new Error(`Failed to update child profile: ${error.message}`);
   }
+
+  console.log('[children] updated note for', childId);
 };
 
 export const deleteChildProfile = async (childId: string) => {
-  const { error } = await supabase.from('children').delete().eq('id', childId);
-
-  if (error) {
-    throw new Error(`Failed to delete child profile: ${error.message}`);
+  console.log('[children] delete request for', childId);
+  try {
+    await adminApi.deleteChildProfile(childId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to delete child profile: ${message}`);
   }
 };

@@ -31,7 +31,7 @@ import {
 import { SkeletonBlock, SkeletonCircle } from "../../components/skeletons/Skeleton";
 
 type RootStackParamList = {
-  BookingDetail: { bookingId: string };
+  BookingDetail: { bookingId: string; booking?: Booking };
 };
 
 type BookingsScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -186,7 +186,7 @@ export default function BookingsScreen() {
   };
 
   const navigateToBookingDetail = (booking: Booking) => {
-    navigation.navigate("BookingDetail", { bookingId: booking.id });
+    navigation.navigate("BookingDetail", { bookingId: booking.id, booking });
   };
 
   const formatDate = (dateString: string) => {
@@ -201,6 +201,9 @@ export default function BookingsScreen() {
     <Card
       style={styles.bookingCard}
       onPress={() => navigateToBookingDetail(booking)}
+      accessible
+      accessibilityRole="button"
+      accessibilityHint="Opens booking details"
     >
       <Card.Content>
         <View style={styles.bookingHeader}>
@@ -250,6 +253,7 @@ export default function BookingsScreen() {
             color="#4caf50"
             size={20}
             onPress={() => navigateToBookingDetail(booking)}
+            accessibilityLabel="View booking details"
           />
           <Icon
             name="edit"
@@ -257,6 +261,7 @@ export default function BookingsScreen() {
             color="#2196f3"
             size={20}
             onPress={() => navigateToBookingDetail(booking)}
+            accessibilityLabel="Edit booking"
           />
           <Menu
             visible={menuVisibleId === booking.id}

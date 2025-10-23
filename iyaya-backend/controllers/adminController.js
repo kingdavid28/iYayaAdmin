@@ -32,21 +32,80 @@ const normalizeUser = (record) => {
   };
 };
 
+const computeTotalHours = (record) => {
+  if (!record) return 0;
+
+  const directHours =
+    (typeof record.totalHours === "number" ? record.totalHours : undefined) ??
+    (typeof record.total_hours === "number" ? record.total_hours : undefined);
+
+  if (typeof directHours === "number" && !Number.isNaN(directHours) && directHours > 0) {
+    return directHours;
+  }
+
+  const startTime = record.start_time || record.startTime;
+  const endTime = record.end_time || record.endTime;
+
+  if (typeof startTime === "string" && typeof endTime === "string") {
+    const [startHour = "0", startMinute = "0"] = startTime.split(":");
+    const [endHour = "0", endMinute = "0"] = endTime.split(":");
+
+    const startDate = new Date(0, 0, 0, Number(startHour), Number(startMinute));
+    const endDate = new Date(0, 0, 0, Number(endHour), Number(endMinute));
+
+    const diffMs = endDate.getTime() - startDate.getTime();
+    if (diffMs > 0) {
+      return Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+    }
+  }
+
+  return 0;
+};
+
 const normalizeBooking = (record) => {
   if (!record) return null;
+  const totalHours = computeTotalHours(record);
   return {
     ...record,
     parent: record.parent || null,
     caregiver: record.caregiver || null,
     job: record.job || null,
+    totalHours,
+    total_hours: record.total_hours ?? totalHours,
   };
 };
 
 const normalizeJob = (record) => {
   if (!record) return null;
+
+  // Debug: Log what we're getting from the database
+  console.log('[normalizeJob] Raw record:', {
+    id: record.id,
+    title: record.title,
+    parent: record.parent,
+    parent_id: record.parent_id,
+    caregiver: record.caregiver,
+    caregiver_id: record.caregiver_id,
+  });
+
+  // Handle parent information from the join
+  let parentInfo = null;
+  if (record.parent) {
+    // This comes from the parent:parent_id(id, name, email) join
+    parentInfo = Array.isArray(record.parent) ? record.parent[0] : record.parent;
+  }
+
+  // Handle caregiver information from the join
+  let caregiverInfo = null;
+  if (record.caregiver) {
+    // This comes from the caregiver:caregiver_id(id, name, email) join
+    caregiverInfo = Array.isArray(record.caregiver) ? record.caregiver[0] : record.caregiver;
+  }
+
   return {
     ...record,
-    parent: record.parent || null,
+    parent: parentInfo || null,
+    caregiver: caregiverInfo || null,
   };
 };
 
@@ -1024,25 +1083,131 @@ exports.cancelBooking = async (req, res) => {
   }
 };
 
-exports.listJobs = async (req, res) => {
+exports.createJob = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, search } = req.query;
-    const { jobs, total } = await JobService.getJobs({
-      page: Number(page),
-      limit: Number(limit),
-      status,
-      search,
+    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
+    const adminId = req.user.id;
+
+    if (!title || !description || !location) {
+      return res.status(400).json({
+        success: false,
+        error: "Title, description, and location are required"
+      });
+    }
+
+    const jobData = {
+      title,
+      description,
+      location,
+      budget: budget || null,
+      hourly_rate: hourly_rate || null,
+      parent_id: parent_id || null,
+      caregiver_id: caregiver_id || null,
+      status: 'open',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const createdJob = await JobService.create(jobData);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "CREATE_JOB",
+      target_id: createdJob.id,
+      metadata: {
+        title,
+        location,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: normalizeJob(createdJob),
+      message: "Job created successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "createJob"));
+  }
+};
+
+exports.updateJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const updates = {
+      ...(title ? { title } : {}),
+      ...(description ? { description } : {}),
+      ...(location ? { location } : {}),
+      ...(typeof budget === 'number' ? { budget } : {}),
+      ...(typeof hourly_rate === 'number' ? { hourly_rate } : {}),
+      ...(parent_id ? { parent_id } : {}),
+      ...(caregiver_id ? { caregiver_id } : {}),
+      updated_at: new Date().toISOString(),
+    };
+
+    const updatedJob = await JobService.update(jobId, updates);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "UPDATE_JOB",
+      target_id: jobId,
+      metadata: {
+        changes: Object.keys(updates),
+      },
     });
 
     res.status(200).json({
       success: true,
-      count: total,
-      totalPages: Math.ceil((total || 0) / Number(limit) || 1),
-      currentPage: Number(page),
-      data: (jobs || []).map(normalizeJob),
+      data: normalizeJob(updatedJob),
+      message: "Job updated successfully",
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "listJobs"));
+    res.status(500).json(handleSupabaseError(error, "updateJob"));
+  }
+};
+
+exports.deleteJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { reason } = req.query || {};
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    await JobService.delete(jobId);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "DELETE_JOB",
+      target_id: jobId,
+      metadata: {
+        title: job.title,
+        reason,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Job deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "deleteJob"));
   }
 };
 

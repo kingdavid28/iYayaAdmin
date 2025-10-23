@@ -188,9 +188,35 @@ export default function AnalyticsManagementScreen() {
         </View>
 
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" />
-            <Text style={styles.loadingText}>Loading analytics...</Text>
+          <View style={styles.skeletonContainer}>
+            <View style={styles.skeletonOverviewRow}>
+              {Array.from({length: 4}).map((_, index) => (
+                <Surface key={`overview-skeleton-${index}`} style={[styles.overviewCard, styles.skeletonCard]} elevation={2}>
+                  <View style={[styles.skeletonBlock, styles.skeletonIcon]} />
+                  <View style={[styles.skeletonBlock, styles.skeletonMetric]} />
+                  <View style={[styles.skeletonBlock, styles.skeletonLabel]} />
+                  <View style={[styles.skeletonBlock, styles.skeletonDelta]} />
+                </Surface>
+              ))}
+            </View>
+
+            {Array.from({length: 3}).map((_, index) => (
+              <Card key={`trend-skeleton-${index}`} style={[styles.chartCard, styles.skeletonCard]}>
+                <Card.Content>
+                  <View style={[styles.skeletonBlock, styles.skeletonTitle]} />
+                  <View style={styles.skeletonChartWrapper}>
+                    {Array.from({length: 4}).map((__, barIndex) => (
+                      <View key={`trend-skeleton-${index}-bar-${barIndex}`} style={styles.skeletonChartRow}>
+                        <View style={[styles.skeletonBlock, styles.skeletonChartLabel]} />
+                        <View style={styles.skeletonChartTrack}>
+                          <View style={[styles.skeletonBlock, styles.skeletonChartBar]} />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </Card.Content>
+              </Card>
+            ))}
           </View>
         ) : !summary ? (
           <Card style={styles.emptyCard}>
@@ -279,14 +305,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     marginVertical: 4,
   },
-  loadingContainer: {
-    paddingVertical: 48,
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    color: '#666',
-  },
   emptyCard: {
     padding: 12,
     elevation: 0,
@@ -370,6 +388,66 @@ const styles = StyleSheet.create({
   chartValueText: {
     marginTop: 4,
     color: '#424242',
+  },
+  skeletonContainer: {
+    gap: 16,
+  },
+  skeletonOverviewRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  skeletonCard: {
+    backgroundColor: '#f7f7f7',
+  },
+  skeletonBlock: {
+    backgroundColor: '#e0e0e0',
+    borderRadius: 8,
+  },
+  skeletonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  skeletonMetric: {
+    height: 24,
+    width: '60%',
+    marginBottom: 8,
+  },
+  skeletonLabel: {
+    height: 16,
+    width: '40%',
+    marginBottom: 12,
+  },
+  skeletonDelta: {
+    height: 14,
+    width: '50%',
+  },
+  skeletonTitle: {
+    height: 20,
+    width: '45%',
+    marginBottom: 16,
+  },
+  skeletonChartWrapper: {
+    gap: 12,
+  },
+  skeletonChartRow: {
+    gap: 12,
+  },
+  skeletonChartLabel: {
+    height: 14,
+    width: '30%',
+  },
+  skeletonChartTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#eeeeee',
+  },
+  skeletonChartBar: {
+    height: '100%',
+    width: '70%',
   },
   fab: {
     position: 'absolute',

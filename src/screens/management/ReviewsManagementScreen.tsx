@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {View, StyleSheet, ScrollView, RefreshControl, Alert} from 'react-native';
+import {View, StyleSheet, FlatList, ScrollView, RefreshControl, Alert, Animated, Vibration} from 'react-native';
 import {
   ActivityIndicator,
   Button,
@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   useTheme,
+  Surface,
 } from 'react-native-paper';
 import {Icon} from 'react-native-elements';
 import {Review} from '../../types';
@@ -40,10 +41,13 @@ export default function ReviewsManagementScreen() {
   const [ratingFilter, setRatingFilter] = useState<(typeof RATING_FILTERS)[number]>(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [actionState, setActionState] = useState<ReviewActionState>({note: '', reviewId: null});
+  const [updatingReview, setUpdatingReview] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'date' | 'rating'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const theme = useTheme();
 
   const filteredReviews = useMemo(() => {
-    return reviews.filter(review => {
+    let filtered = reviews.filter(review => {
       const matchesStatus =
         statusFilter === 'all' || (review.status ?? 'published') === statusFilter;
       const matchesRating = ratingFilter === 0 || review.rating === ratingFilter;
@@ -54,7 +58,20 @@ export default function ReviewsManagementScreen() {
         review.revieweeInfo?.name?.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesStatus && matchesRating && matchesSearch;
     });
-  }, [ratingFilter, reviews, searchQuery, statusFilter]);
+
+    // Sort the filtered reviews
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'date') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortBy === 'rating') {
+        comparison = a.rating - b.rating;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [ratingFilter, reviews, searchQuery, statusFilter, sortBy, sortOrder]);
 
   const loadReviews = useCallback(async () => {
     try {
@@ -85,6 +102,9 @@ export default function ReviewsManagementScreen() {
   };
 
   const handleChangeStatus = async (reviewId: string, status: 'published' | 'hidden') => {
+    if (updatingReview) return; // Prevent multiple clicks
+    setUpdatingReview(reviewId);
+    Vibration.vibrate(50);
     try {
       const note = actionState.reviewId === reviewId ? actionState.note.trim() : '';
       await updateReviewStatus(reviewId, status, note || undefined);
@@ -93,10 +113,13 @@ export default function ReviewsManagementScreen() {
       Alert.alert('Success', `Review has been ${status === 'hidden' ? 'hidden' : 'published'}.`);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Unable to update review status');
+    } finally {
+      setUpdatingReview(null);
     }
   };
 
   const handleDelete = (reviewId: string) => {
+    Vibration.vibrate(100);
     Alert.alert(
       'Delete Review',
       'Are you sure you want to permanently delete this review?',
@@ -120,144 +143,267 @@ export default function ReviewsManagementScreen() {
     );
   };
 
-  const renderReviewCard = (review: Review) => {
+  const renderReviewCard = (review: Review, theme: any) => {
     const status = review.status ?? 'published';
+
     return (
-      <Card key={review.id} style={styles.card}>
-        <Card.Content>
-          <View style={styles.headerRow}>
-            <View style={styles.reviewerInfo}>
-              <Icon name="person" type="material" color={theme.colors.primary} size={22} />
-              <View style={styles.headerText}>
-                <Text variant="titleMedium">{review.reviewerInfo?.name ?? 'Anonymous'}</Text>
-                <Text variant="bodySmall" style={styles.emailText}>
-                  {review.reviewerInfo?.email ?? 'No email provided'}
-                </Text>
+      <Animated.View style={{ opacity: 1 }}>
+        <Surface style={[styles.card, {backgroundColor: theme.colors.surface}]} elevation={4}>
+          <View style={styles.cardContentWrapper}>
+            <Card.Content style={styles.cardContent}>
+              <View style={styles.headerRow}>
+                <View style={styles.reviewerInfo}>
+                  <Icon name="person" type="material" color={theme.colors.primary} size={28} />
+                  <View style={styles.headerText}>
+                    <Text variant="titleMedium" style={[styles.reviewerName, {color: theme.colors.onSurface}]}>
+                      {review.reviewerInfo?.name ?? 'Anonymous'}
+                    </Text>
+                    <Text variant="bodySmall" style={[styles.emailText, {color: theme.colors.onSurfaceVariant}]}>
+                      {review.reviewerInfo?.email ?? 'No email provided'}
+                    </Text>
+                  </View>
+                </View>
+                <Chip
+                  icon="star"
+                  style={[styles.ratingChip, {backgroundColor: theme.colors.secondaryContainer}]}
+                  textStyle={[styles.ratingText, {color: theme.colors.onSecondaryContainer}]}>
+                  {review.rating.toFixed(1)}
+                </Chip>
               </View>
-            </View>
-            <Chip
-              icon="star"
-              style={styles.ratingChip}
-              textStyle={styles.ratingText}>
-              {review.rating.toFixed(1)}
-            </Chip>
+
+              <View style={[styles.divider, {backgroundColor: theme.colors.outlineVariant}]} />
+
+              <Text variant="bodyMedium" style={[styles.commentText, {color: theme.colors.onSurface, lineHeight: 22}]}>
+                {review.comment ?? 'No comment provided.'}
+              </Text>
+
+              <View style={styles.metaRow}>
+                <Chip icon="account" style={[styles.metaChip, {backgroundColor: theme.colors.tertiaryContainer}]}>
+                  {review.revieweeInfo?.name ?? 'Unknown caregiver'}
+                </Chip>
+                <Chip icon="calendar" style={[styles.metaChip, {backgroundColor: theme.colors.tertiaryContainer}]}>
+                  {new Date(review.createdAt).toLocaleDateString()}
+                </Chip>
+                <Chip
+                  icon="check-circle"
+                  style={[
+                    styles.metaChip,
+                    styles.statusChip,
+                    {backgroundColor: status === 'hidden' ? theme.colors.errorContainer : theme.colors.primaryContainer}
+                  ]}
+                  textStyle={{color: status === 'hidden' ? theme.colors.onErrorContainer : theme.colors.onPrimaryContainer}}>
+                  {status === 'hidden' ? 'Hidden' : 'Published'}
+                </Chip>
+              </View>
+
+              <TextInput
+                mode="outlined"
+                label="Moderation note (optional)"
+                placeholder="Document reason for action"
+                value={actionState.reviewId === review.id ? actionState.note : ''}
+                onChangeText={value => setActionState({reviewId: review.id, note: value})}
+                style={styles.noteInput}
+                multiline
+                theme={{
+                  colors: {
+                    ...theme.colors,
+                    outline: theme.colors.outlineVariant,
+                  },
+                }}
+              />
+
+              <View style={styles.actionsRow}>
+                <Button
+                  mode={status === 'hidden' ? 'contained' : 'outlined'}
+                  icon={status === 'hidden' ? 'eye' : 'eye-off'}
+                  onPress={() => handleChangeStatus(review.id, status === 'hidden' ? 'published' : 'hidden')}
+                  style={[
+                    styles.actionButton,
+                    styles.hideButton,
+                    {
+                      backgroundColor: status === 'hidden' ? theme.colors.primary : 'transparent',
+                      elevation: status === 'hidden' ? 2 : 0,
+                      borderWidth: status === 'hidden' ? 0 : 1,
+                    }
+                  ]}
+                  labelStyle={[
+                    styles.actionButtonText,
+                    { color: status === 'hidden' ? theme.colors.onPrimary : theme.colors.primary }
+                  ]}
+                  contentStyle={{ paddingVertical: 10, paddingHorizontal: 12 }}
+                  compact={true}
+                  loading={updatingReview === review.id}
+                  disabled={updatingReview !== null}>
+                  {status === 'hidden' ? 'Publish' : 'Hide'}
+                </Button>
+                <Button
+                  mode="contained"
+                  icon="delete"
+                  onPress={() => handleDelete(review.id)}
+                  style={[
+                    styles.actionButton,
+                    styles.deleteButton,
+                    {
+                      backgroundColor: theme.colors.error,
+                      elevation: 3,
+                    }
+                  ]}
+                  labelStyle={[
+                    styles.actionButtonText,
+                    { color: theme.colors.onError }
+                  ]}
+                  contentStyle={{ paddingVertical: 10, paddingHorizontal: 12 }}
+                  compact={true}>
+                  Delete
+                </Button>
+              </View>
+            </Card.Content>
           </View>
-
-          <View style={styles.divider} />
-
-          <Text variant="bodyMedium" style={styles.commentText}>
-            {review.comment ?? 'No comment provided.'}
-          </Text>
-
-          <View style={styles.metaRow}>
-            <Chip icon="person-pin" style={styles.metaChip}>
-              {review.revieweeInfo?.name ?? 'Unknown caregiver'}
-            </Chip>
-            <Chip icon="event" style={styles.metaChip}>
-              {new Date(review.createdAt).toLocaleDateString()}
-            </Chip>
-            <Chip icon="check-circle" style={styles.metaChip}>
-              {status === 'hidden' ? 'Hidden' : 'Published'}
-            </Chip>
-          </View>
-
-          <TextInput
-            mode="outlined"
-            label="Moderation note (optional)"
-            placeholder="Document reason for action"
-            value={actionState.reviewId === review.id ? actionState.note : ''}
-            onChangeText={value => setActionState({reviewId: review.id, note: value})}
-            style={styles.noteInput}
-            multiline
-          />
-
-          <View style={styles.actionsRow}>
-            <Button
-              mode="contained"
-              icon={status === 'hidden' ? 'eye' : 'eye-off'}
-              onPress={() => handleChangeStatus(review.id, status === 'hidden' ? 'published' : 'hidden')}
-              style={styles.actionButton}>
-              {status === 'hidden' ? 'Publish' : 'Hide'}
-            </Button>
-            <Button
-              mode="outlined"
-              icon="delete"
-              textColor={theme.colors.error}
-              onPress={() => handleDelete(review.id)}
-              style={styles.actionButton}>
-              Delete
-            </Button>
-          </View>
-        </Card.Content>
-      </Card>
+        </Surface>
+      </Animated.View>
     );
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}>
-        <Text variant="headlineMedium" style={styles.title}>
-          Reviews Management
-        </Text>
-        <Text variant="bodyMedium" style={styles.subtitle}>
-          Moderate caregiver feedback, resolve disputes, and ensure quality service.
-        </Text>
-
-        <Searchbar
-          placeholder="Search by reviewer, caregiver, or comment"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          style={styles.searchbar}
-        />
-
-        <View style={styles.filterRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {STATUS_FILTERS.map(filter => (
-              <Chip
-                key={filter.value}
-                mode={statusFilter === filter.value ? 'flat' : 'outlined'}
-                onPress={() => setStatusFilter(filter.value)}
-                style={styles.filterChip}>
-                {filter.label}
-              </Chip>
-            ))}
-            {RATING_FILTERS.map(rating => (
-              <Chip
-                key={rating}
-                mode={ratingFilter === rating ? 'flat' : 'outlined'}
-                onPress={() => setRatingFilter(rating)}
-                style={styles.filterChip}
-                icon="star">
-                {rating === 0 ? 'All Ratings' : `${rating} Stars`}
-              </Chip>
-            ))}
-          </ScrollView>
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" />
-            <Text style={styles.loadingText}>Loading reviews...</Text>
-          </View>
-        ) : filteredReviews.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.emptyTitle}>
-                No reviews found
-              </Text>
-              <Text variant="bodyMedium" style={styles.emptyText}>
-                Adjust your filters or refresh to see the latest reviews.
-              </Text>
-            </Card.Content>
-          </Card>
-        ) : (
-          filteredReviews.map(renderReviewCard)
+    <View style={[styles.container, {backgroundColor: theme.colors.background}]}>
+      <FlatList
+        data={filteredReviews}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => renderReviewCard(item, theme)}
+        ListHeaderComponent={() => (
+          <>
+            <Text variant="headlineMedium" style={[styles.title, {color: theme.colors.primary}]}>
+              Reviews Management
+            </Text>
+            <Text variant="bodyLarge" style={[styles.subtitle, {color: theme.colors.onSurfaceVariant}]}>
+              Moderate caregiver feedback, resolve disputes, and ensure quality service.
+            </Text>
+            <Searchbar
+              placeholder="Search by reviewer, caregiver, or comment"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={[styles.searchbar, {backgroundColor: theme.colors.surface}]}
+              theme={{
+                colors: {
+                  ...theme.colors,
+                  elevation: {level1: theme.colors.elevation.level1},
+                },
+              }}
+            />
+            <View style={styles.filterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.sortContainer}>
+                  <Text variant="bodySmall" style={{color: theme.colors.onSurfaceVariant, marginRight: 8}}>
+                    Sort by:
+                  </Text>
+                  <Chip
+                    mode={sortBy === 'date' ? 'flat' : 'outlined'}
+                    onPress={() => {
+                      setSortBy('date');
+                      setSortOrder(sortBy === 'date' && sortOrder === 'desc' ? 'asc' : 'desc');
+                    }}
+                    style={[
+                      styles.sortChip,
+                      sortBy === 'date' && {backgroundColor: theme.colors.primaryContainer}
+                    ]}
+                    icon="calendar">
+                    Date {sortBy === 'date' ? (sortOrder === 'desc' ? '↓' : '↑') : ''}
+                  </Chip>
+                  <Chip
+                    mode={sortBy === 'rating' ? 'flat' : 'outlined'}
+                    onPress={() => {
+                      setSortBy('rating');
+                      setSortOrder(sortBy === 'rating' && sortOrder === 'desc' ? 'asc' : 'desc');
+                    }}
+                    style={[
+                      styles.sortChip,
+                      sortBy === 'rating' && {backgroundColor: theme.colors.primaryContainer}
+                    ]}
+                    icon="star">
+                    Rating {sortBy === 'rating' ? (sortOrder === 'desc' ? '↓' : '↑') : ''}
+                  </Chip>
+                </View>
+                {STATUS_FILTERS.map(filter => (
+                  <Chip
+                    key={filter.value}
+                    mode={statusFilter === filter.value ? 'flat' : 'outlined'}
+                    onPress={() => setStatusFilter(filter.value)}
+                    style={[
+                      styles.filterChip,
+                      statusFilter === filter.value && {backgroundColor: theme.colors.primaryContainer}
+                    ]}>
+                    {filter.label}
+                  </Chip>
+                ))}
+                {RATING_FILTERS.map(rating => (
+                  <Chip
+                    key={rating}
+                    mode={ratingFilter === rating ? 'flat' : 'outlined'}
+                    onPress={() => setRatingFilter(rating)}
+                    style={[
+                      styles.filterChip,
+                      ratingFilter === rating && {backgroundColor: theme.colors.primaryContainer}
+                    ]}
+                    icon="star">
+                    {rating === 0 ? 'All Ratings' : `${rating} Stars`}
+                  </Chip>
+                ))}
+              </ScrollView>
+            </View>
+          </>
         )}
-      </ScrollView>
-
-      <FAB icon="refresh" onPress={loadReviews} style={styles.fab} disabled={loading} />
+        ListEmptyComponent={() => (
+          loading ? (
+            <View>
+              {Array.from({length: 3}).map((_, index) => (
+                <View key={index} style={styles.skeletonCard}>
+                  <View style={styles.skeletonHeader}>
+                    <View style={styles.skeletonAvatar} />
+                    <View style={styles.skeletonTextContainer}>
+                      <View style={styles.skeletonTitle} />
+                      <View style={styles.skeletonSubtitle} />
+                    </View>
+                    <View style={styles.skeletonChip} />
+                  </View>
+                  <View style={styles.skeletonDivider} />
+                  <View style={styles.skeletonContent} />
+                  <View style={styles.skeletonMeta}>
+                    <View style={styles.skeletonMetaChip} />
+                    <View style={styles.skeletonMetaChip} />
+                  </View>
+                  <View style={styles.skeletonInput} />
+                  <View style={styles.skeletonActions}>
+                    <View style={styles.skeletonButton} />
+                    <View style={styles.skeletonButton} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Surface style={[styles.emptyCard, {backgroundColor: theme.colors.surface}]} elevation={1}>
+              <Card.Content>
+                <Text variant="titleMedium" style={[styles.emptyTitle, {color: theme.colors.onSurface}]}>
+                  No reviews found
+                </Text>
+                <Text variant="bodyMedium" style={[styles.emptyText, {color: theme.colors.onSurfaceVariant}]}>
+                  Adjust your filters or refresh to see the latest reviews.
+                </Text>
+              </Card.Content>
+            </Surface>
+          )
+        )}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      />
+      <FAB
+        icon="refresh"
+        onPress={loadReviews}
+        style={[styles.fab, {backgroundColor: theme.colors.primary}]}
+        disabled={loading}
+        accessibilityLabel="Refresh reviews list"
+        accessibilityHint="Reloads the list of reviews from the server"
+      />
     </View>
   );
 }
@@ -265,7 +411,6 @@ export default function ReviewsManagementScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   scrollContent: {
     padding: 16,
@@ -273,20 +418,28 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: 'center',
-    color: '#3f51b5',
     fontWeight: 'bold',
     marginBottom: 8,
   },
   subtitle: {
     textAlign: 'center',
-    color: '#666',
     marginBottom: 16,
+    lineHeight: 20,
   },
   searchbar: {
     marginBottom: 12,
+    elevation: 1,
   },
   filterRow: {
     marginBottom: 16,
+  },
+  sortContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  sortChip: {
+    marginRight: 8,
   },
   filterChip: {
     marginRight: 8,
@@ -297,11 +450,17 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#666',
   },
   card: {
     marginBottom: 16,
-    elevation: 2,
+    borderRadius: 16,
+  },
+  cardContentWrapper: {
+    overflow: 'hidden',
+    borderRadius: 16,
+  },
+  cardContent: {
+    padding: 20,
   },
   headerRow: {
     flexDirection: 'row',
@@ -318,62 +477,160 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flexShrink: 1,
   },
+  reviewerName: {
+    fontWeight: '600',
+  },
   emailText: {
-    color: '#666',
+    marginTop: 2,
   },
   ratingChip: {
-    backgroundColor: '#ffca28',
+    minWidth: 60,
+    justifyContent: 'center',
   },
   ratingText: {
     fontWeight: 'bold',
   },
   divider: {
-    marginVertical: 12,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#e0e0e0',
+    marginVertical: 16,
+    height: 1,
   },
   commentText: {
-    marginBottom: 12,
-    color: '#424242',
+    marginBottom: 16,
+    lineHeight: 20,
   },
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   metaChip: {
     marginRight: 8,
     marginBottom: 8,
   },
+  statusChip: {
+    marginBottom: 0,
+  },
   noteInput: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 8,
   },
   actionButton: {
     flex: 1,
-    marginRight: 8,
+    minHeight: 44, // Ensure minimum touch target for accessibility
+  },
+  hideButton: {
+    borderWidth: 1,
+    borderColor: '#6200EE', // Primary color
+    shadowColor: 'transparent',
+  },
+  deleteButton: {
+    elevation: 3,
+    shadowColor: '#B00020',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   fab: {
     position: 'absolute',
     right: 16,
     bottom: 16,
-    backgroundColor: '#3f51b5',
   },
   emptyCard: {
-    padding: 12,
-    elevation: 0,
-    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
   },
   emptyTitle: {
     textAlign: 'center',
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   emptyText: {
     textAlign: 'center',
-    color: '#666',
+  },
+  skeletonCard: {
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 12,
+  },
+  skeletonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  skeletonAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#c0c0c0',
+  },
+  skeletonTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  skeletonTitle: {
+    width: 120,
+    height: 16,
+    backgroundColor: '#c0c0c0',
+    marginBottom: 4,
+  },
+  skeletonSubtitle: {
+    width: 100,
+    height: 12,
+    backgroundColor: '#c0c0c0',
+  },
+  skeletonChip: {
+    width: 50,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#c0c0c0',
+  },
+  skeletonDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: '#c0c0c0',
+    marginBottom: 8,
+  },
+  skeletonContent: {
+    width: '80%',
+    height: 14,
+    backgroundColor: '#c0c0c0',
+    marginBottom: 4,
+  },
+  skeletonMeta: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  skeletonMetaChip: {
+    width: 80,
+    height: 20,
+    backgroundColor: '#c0c0c0',
+    marginRight: 8,
+  },
+  skeletonInput: {
+    width: '100%',
+    height: 60,
+    borderRadius: 4,
+    backgroundColor: '#c0c0c0',
+    marginBottom: 8,
+  },
+  skeletonActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  skeletonButton: {
+    flex: 1,
+    height: 30,
+    backgroundColor: '#c0c0c0',
+    marginRight: 8,
   },
 });

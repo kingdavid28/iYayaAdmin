@@ -32,7 +32,7 @@ import {
 import { SkeletonBlock, SkeletonCircle } from "../../components/skeletons/Skeleton";
 
 type RootStackParamList = {
-  JobDetail: { jobId: string };
+  JobDetail: { jobId: string; editMode?: boolean };
 };
 
 type JobsScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -76,6 +76,13 @@ export default function JobsScreen() {
     cancelled: "#f44336",
     active: "#4caf50",
     inactive: "#9e9e9e",
+  };
+
+  const formatBudgetDisplay = (budget: number) => {
+    if (budget > 0) {
+      return `₱${budget}`;
+    }
+    return "Contact for pricing";
   };
 
   const formatStatusLabel = (status: string) =>
@@ -212,6 +219,14 @@ export default function JobsScreen() {
     navigation.navigate("JobDetail", { jobId: job.id });
   };
 
+  const navigateToJobEdit = (job: Job) => {
+    if (!job.id) {
+      Alert.alert("Error", "Job ID is missing. Cannot edit job.");
+      return;
+    }
+    navigation.navigate("JobDetail", { jobId: job.id, editMode: true });
+  };
+
   const renderJobCard = ({ item: job }: { item: Job }) => (
     <Card style={styles.jobCard} onPress={() => navigateToJobDetail(job)}>
       <Card.Content>
@@ -229,7 +244,7 @@ export default function JobsScreen() {
               📍 {job.location}
             </Text>
             <Text variant="bodySmall" style={styles.jobBudget}>
-              💰 ₱{job.budget}
+              💰 {formatBudgetDisplay(job.budget)}
             </Text>
           </View>
           <View style={styles.jobActions}>
@@ -269,7 +284,7 @@ export default function JobsScreen() {
             type="material"
             color="#2196f3"
             size={20}
-            onPress={() => navigateToJobDetail(job)}
+            onPress={() => navigateToJobEdit(job)}
           />
           <View style={styles.actionButtons}>
             {["pending", "open", "inactive"].includes(job.status) && (

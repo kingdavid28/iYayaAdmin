@@ -79,6 +79,7 @@ export interface Job {
   };
   location: string;
   budget: number;
+  hourly_rate?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -112,11 +113,29 @@ export interface Booking {
   };
   startDate: string;
   endDate: string;
+  serviceDate?: string;
+  startTime?: string;
+  endTime?: string;
   totalHours: number;
   hourlyRate: number;
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
+  contactPhone?: string | null;
+  specialInstructions?: string | null;
+  emergencyContact?: {
+    name?: string;
+    phone?: string;
+    relation?: string;
+  } | null;
+  selectedChildren?: {
+    name?: string;
+    age?: number;
+    allergies?: string;
+    preferences?: string;
+    specialInstructions?: string;
+  }[] | null;
+  timeDisplay?: string | null;
 }
 
 export interface ChildProfile {
@@ -127,11 +146,11 @@ export interface ChildProfile {
     email?: string;
   };
   name: string;
-  dateOfBirth: string;
+  birthDate?: string | null;
   gender?: 'male' | 'female' | 'other';
   specialNeeds?: string;
   allergies?: string;
-  medicalConditions?: string;
+  notes?: string;
   emergencyContact?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
@@ -172,7 +191,7 @@ export type NotificationType =
 
 export interface NotificationItem {
   id: string;
-  userId: string;
+  userId?: string;
   userInfo?: {
     name?: string;
     email?: string;
@@ -184,6 +203,13 @@ export interface NotificationItem {
   read: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface SystemSettings {
+  maintenanceMode: boolean;
+  registrationEnabled: boolean;
+  emailVerificationRequired: boolean;
+  backgroundCheckRequired: boolean;
 }
 
 export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'disputed';
@@ -247,11 +273,13 @@ export interface AuditLog {
   id: string;
   action: string;
   adminId: {
-    name: string;
-    email: string;
+    id?: string;
+    name?: string;
+    email?: string;
   };
   targetId: string;
   details: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   timestamp: string;
   ip?: string;
 }
@@ -279,6 +307,7 @@ export interface JobRow {
   status?: Job['status'] | null;
   location?: string | null;
   budget?: number | null;
+  hourly_rate?: number | null;
   parent?: MaybeRelation<UserReference>;
   parentId?: MaybeRelation<UserReference>;
   parent_id?: MaybeRelation<UserReference>;

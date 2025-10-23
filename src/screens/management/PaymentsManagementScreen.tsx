@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {Alert, RefreshControl, ScrollView, StyleSheet, View} from 'react-native';
+import {Alert, FlatList, RefreshControl, ScrollView, StyleSheet, View} from 'react-native';
 import {
-  ActivityIndicator,
   Button,
   Card,
   Chip,
@@ -9,6 +8,7 @@ import {
   FAB,
   Portal,
   Searchbar,
+  Surface,
   Text,
   TextInput,
   useTheme,
@@ -23,11 +23,44 @@ import {
 
 const STATUS_FILTERS: Array<{label: string; value: PaymentStatus | 'all'; icon: string; color: string}> = [
   {label: 'All', value: 'all', icon: 'select-all', color: '#616161'},
-  {label: 'Pending', value: 'pending', icon: 'schedule', color: '#ff9800'},
+  {label: 'Pending', value: 'pending', icon: 'clock-outline', color: '#ff9800'},
   {label: 'Paid', value: 'paid', icon: 'check-circle', color: '#4caf50'},
   {label: 'Refunded', value: 'refunded', icon: 'undo', color: '#2196f3'},
   {label: 'Disputed', value: 'disputed', icon: 'gavel', color: '#f44336'},
 ];
+
+type DebouncedValue<T> = {
+  value: T;
+};
+
+function useDebouncedValue<T>(input: T, delay = 400): T {
+  const [debounced, setDebounced] = useState<T>(input);
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(input), delay);
+    return () => clearTimeout(handler);
+  }, [delay, input]);
+
+  return debounced;
+}
+
+interface PaymentStats {
+  total: number;
+  pending: number;
+  paid: number;
+  refunded: number;
+  disputed: number;
+}
+
+const SKELETON_COUNT = 4;
+
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+};
 
 export default function PaymentsManagementScreen() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -35,39 +68,54 @@ export default function PaymentsManagementScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | 'all'>('all');
-  const [notes, setNotes] = useState('');
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [saveLoadingId, setSaveLoadingId] = useState<string | null>(null);
+  const [refundLoadingId, setRefundLoadingId] = useState<string | null>(null);
   const [refundDialog, setRefundDialog] = useState<{visible: boolean; paymentId: string | null; reason: string}>(
     {visible: false, paymentId: null, reason: ''},
   );
   const theme = useTheme();
 
-  const loadPayments = useCallback(async () => {
-    try {
-      if (!refreshing) {
-        setLoading(true);
+  const debouncedSearch = useDebouncedValue(searchQuery);
+
+  const loadPayments = useCallback(
+    async (options?: {silent?: boolean}) => {
+      try {
+        if (!options?.silent) {
+          setLoading(true);
+        }
+        const fetchedPayments = await fetchPayments({
+          status: statusFilter,
+          search: debouncedSearch.trim() ? debouncedSearch : undefined,
+        });
+        setPayments(fetchedPayments);
+        setNoteDrafts(prev => {
+          const next: Record<string, string> = {};
+          fetchedPayments.forEach(payment => {
+            next[payment.id] = prev[payment.id] ?? payment.notes ?? '';
+          });
+          return next;
+        });
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to load payments');
+        setPayments([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-      const fetchedPayments = await fetchPayments({
-        status: statusFilter,
-        search: searchQuery.trim() || undefined,
-      });
-      setPayments(fetchedPayments);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to load payments');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [refreshing, searchQuery, statusFilter]);
+    },
+    [debouncedSearch, statusFilter],
+  );
 
   useEffect(() => {
     loadPayments();
   }, [loadPayments]);
 
   const filteredPayments = useMemo(() => {
-    if (!searchQuery.trim()) {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) {
       return payments;
     }
-    const q = searchQuery.toLowerCase();
     return payments.filter(payment => {
       return (
         payment.parentInfo.name?.toLowerCase().includes(q) ||
@@ -77,192 +125,293 @@ export default function PaymentsManagementScreen() {
         payment.bookingId.toLowerCase().includes(q)
       );
     });
-  }, [payments, searchQuery]);
+  }, [debouncedSearch, payments]);
 
-  const handleRefresh = () => {
+  const stats = useMemo<PaymentStats>(() => {
+    return payments.reduce(
+      (acc, payment) => {
+        acc.total += 1;
+        acc[payment.paymentStatus] += 1;
+        return acc;
+      },
+      {
+        total: 0,
+        pending: 0,
+        paid: 0,
+        refunded: 0,
+        disputed: 0,
+      },
+    );
+  }, [payments]);
+
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    loadPayments();
-  };
+    loadPayments({silent: true});
+  }, [loadPayments]);
 
-  const handleStatusUpdate = async (payment: PaymentRecord, nextStatus: PaymentStatus) => {
-    if (!notes.trim()) {
-      Alert.alert('Missing notes', 'Please document the reason in the notes field before updating status.');
-      return;
-    }
+  const handleNoteChange = useCallback((paymentId: string, text: string) => {
+    setNoteDrafts(prev => ({...prev, [paymentId]: text}));
+  }, []);
 
-    try {
-      await updatePaymentStatus(payment.id, nextStatus, notes.trim());
-      setNotes('');
-      await loadPayments();
-      Alert.alert('Success', `Payment marked as ${nextStatus}.`);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update payment status');
-    }
-  };
+  const handleStatusUpdate = useCallback(
+    async (payment: PaymentRecord, nextStatus: PaymentStatus) => {
+      const note = (noteDrafts[payment.id] ?? '').trim();
+      if (!note) {
+        Alert.alert('Missing notes', 'Please document the reason in the notes field before updating status.');
+        return;
+      }
 
-  const openRefundDialog = (paymentId: string) => {
+      try {
+        setSaveLoadingId(payment.id);
+        await updatePaymentStatus(payment.id, nextStatus, note);
+        setNoteDrafts(prev => ({...prev, [payment.id]: ''}));
+        await loadPayments({silent: true});
+        Alert.alert('Success', `Payment marked as ${nextStatus}.`);
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to update payment status');
+      } finally {
+        setSaveLoadingId(null);
+      }
+    },
+    [loadPayments, noteDrafts],
+  );
+
+  const openRefundDialog = useCallback((paymentId: string) => {
     setRefundDialog({visible: true, paymentId, reason: ''});
-  };
+  }, []);
 
-  const handleRefund = async () => {
-    if (!refundDialog.paymentId) {
+  const handleRefund = useCallback(async () => {
+    const paymentId = refundDialog.paymentId;
+    if (!paymentId) {
       return;
     }
+
     try {
-      await refundPayment(refundDialog.paymentId, refundDialog.reason.trim() || undefined);
+      setRefundLoadingId(paymentId);
+      await refundPayment(paymentId, refundDialog.reason.trim() || undefined);
       setRefundDialog({visible: false, paymentId: null, reason: ''});
-      await loadPayments();
+      await loadPayments({silent: true});
       Alert.alert('Success', 'Refund initiated successfully.');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to process refund');
+    } finally {
+      setRefundLoadingId(null);
     }
-  };
+  }, [loadPayments, refundDialog]);
 
-  const paymentActions = (payment: PaymentRecord) => {
-    return (
-      <View style={styles.actionsRow}>
-        {payment.paymentStatus !== 'paid' ? (
-          <Button
-            mode="contained"
-            icon="check"
-            onPress={() => handleStatusUpdate(payment, 'paid')}
-            style={styles.actionButton}>
-            Mark Paid
-          </Button>
-        ) : null}
-        {payment.paymentStatus !== 'disputed' ? (
-          <Button
-            mode="outlined"
-            icon="gavel"
-            onPress={() => handleStatusUpdate(payment, 'disputed')}
-            style={styles.actionButton}>
-            Flag Dispute
-          </Button>
-        ) : null}
-        {payment.paymentStatus !== 'refunded' ? (
-          <Button
-            mode="outlined"
-            icon="undo"
-            onPress={() => openRefundDialog(payment.id)}
-            style={styles.actionButton}
-            textColor={theme.colors.error}>
-            Refund
-          </Button>
-        ) : null}
+  const getStatusMetric = useCallback(
+    (value: PaymentStatus | 'all') => (value === 'all' ? stats.total : stats[value]),
+    [stats],
+  );
+
+  const renderStatsCard = useCallback(
+    (icon: string, label: string, value: number, color: string) => (
+      <Surface key={label} style={styles.statCard} elevation={2}>
+        <View style={styles.statIconWrapper}>
+          <Icon name={icon} type="material-community" color={color} size={28} />
+        </View>
+        <Text variant="titleMedium" style={styles.statValue}>
+          {value.toLocaleString()}
+        </Text>
+        <Text variant="bodySmall" style={styles.statLabel}>
+          {label}
+        </Text>
+      </Surface>
+    ),
+    [],
+  );
+
+  const renderListHeader = useCallback(() => (
+    <View style={styles.headerContainer}>
+      <Text variant="headlineMedium" style={styles.title}>
+        Payments Management
+      </Text>
+      <Text variant="bodyMedium" style={styles.subtitle}>
+        Track caregiver payouts, resolve disputes, and manage refunds.
+      </Text>
+
+      <View style={styles.statsContainer}>
+        {renderStatsCard('wallet-outline', 'Total payments', stats.total, theme.colors.primary)}
+        {renderStatsCard('clock-outline', 'Pending', stats.pending, '#ff9800')}
+        {renderStatsCard('check-circle-outline', 'Paid', stats.paid, '#4caf50')}
+        {renderStatsCard('cash-refund', 'Refunded', stats.refunded, '#2196f3')}
       </View>
-    );
-  };
 
-  const renderPaymentCard = (payment: PaymentRecord) => {
-    return (
-      <Card key={payment.id} style={styles.card}>
-        <Card.Content>
-          <View style={styles.headerRow}>
-            <View style={styles.headerInfo}>
-              <Icon name="payment" type="material" color={theme.colors.primary} size={24} />
-              <View style={styles.headerText}>
-                <Text variant="titleMedium">Booking {payment.bookingId}</Text>
-                <Text variant="bodySmall" style={styles.subtleText}>
-                  Parent: {payment.parentInfo.name ?? 'Unknown'} • Caregiver: {payment.caregiverInfo.name ?? 'Unknown'}
-                </Text>
+      <Searchbar
+        placeholder="Search payments by user or booking"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        style={styles.searchbar}
+      />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+        {STATUS_FILTERS.map(filter => (
+          <Chip
+            key={filter.value}
+            icon={filter.icon}
+            mode={statusFilter === filter.value ? 'flat' : 'outlined'}
+            style={styles.filterChip}
+            selected={statusFilter === filter.value}
+            onPress={() => setStatusFilter(filter.value)}>
+            {`${filter.label} (${getStatusMetric(filter.value)})`}
+          </Chip>
+        ))}
+      </ScrollView>
+    </View>
+  ), [getStatusMetric, renderStatsCard, searchQuery, stats, statusFilter, theme.colors.primary]);
+
+  const renderPaymentCard = useCallback(
+    ({item}: {item: PaymentRecord}) => {
+      const noteValue = noteDrafts[item.id] ?? '';
+      const showExistingNotes = item.notes && item.notes.trim().length > 0;
+
+      return (
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.headerRow}>
+              <View style={styles.headerInfo}>
+                <Icon name="credit-card-outline" type="material-community" color={theme.colors.primary} size={26} />
+                <View style={styles.headerText}>
+                  <Text variant="titleMedium">Booking {item.bookingId}</Text>
+                  <Text variant="bodySmall" style={styles.subtleText}>
+                    Parent: {item.parentInfo.name ?? 'Unknown'} • Caregiver: {item.caregiverInfo.name ?? 'Unknown'}
+                  </Text>
+                </View>
+              </View>
+              <Chip style={styles.statusChip} icon="information-outline">
+                {item.paymentStatus.toUpperCase()}
+              </Chip>
+            </View>
+
+            <View style={styles.amountRow}>
+              <Text variant="headlineSmall" style={styles.amountText}>
+                ₱{item.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
+              </Text>
+              <Text variant="bodySmall" style={styles.subtleText}>
+                Created {formatDateTime(item.createdAt)}
+              </Text>
+            </View>
+
+            {showExistingNotes ? (
+              <Card style={styles.notesCard}>
+                <Card.Content>
+                  <Text variant="titleSmall" style={styles.notesTitle}>
+                    Existing notes
+                  </Text>
+                  <Text variant="bodySmall">{item.notes}</Text>
+                </Card.Content>
+              </Card>
+            ) : null}
+
+            <TextInput
+              mode="outlined"
+              label="Admin notes"
+              placeholder="Document reason for changes"
+              value={noteValue}
+              onChangeText={text => handleNoteChange(item.id, text)}
+              style={styles.notesInput}
+              multiline
+            />
+
+            <View style={styles.actionsRow}>
+              {item.paymentStatus !== 'paid' ? (
+                <Button
+                  mode="contained"
+                  icon="check"
+                  onPress={() => handleStatusUpdate(item, 'paid')}
+                  style={styles.actionButton}
+                  loading={saveLoadingId === item.id}
+                  disabled={saveLoadingId === item.id || refundLoadingId === item.id}>
+                  Mark Paid
+                </Button>
+              ) : null}
+              {item.paymentStatus !== 'disputed' ? (
+                <Button
+                  mode="outlined"
+                  icon="gavel"
+                  onPress={() => handleStatusUpdate(item, 'disputed')}
+                  style={styles.actionButton}
+                  loading={saveLoadingId === item.id}
+                  disabled={saveLoadingId === item.id || refundLoadingId === item.id}>
+                  Flag Dispute
+                </Button>
+              ) : null}
+              {item.paymentStatus !== 'refunded' ? (
+                <Button
+                  mode="outlined"
+                  icon="undo"
+                  onPress={() => openRefundDialog(item.id)}
+                  style={styles.actionButton}
+                  textColor={theme.colors.error}
+                  disabled={refundLoadingId === item.id || saveLoadingId === item.id}>
+                  Refund
+                </Button>
+              ) : null}
+            </View>
+          </Card.Content>
+        </Card>
+      );
+    },
+    [handleNoteChange, handleStatusUpdate, noteDrafts, openRefundDialog, refundLoadingId, saveLoadingId, theme.colors.error, theme.colors.primary],
+  );
+
+  const renderSkeletons = useMemo(
+    () => (
+      <View style={styles.skeletonContainer}>
+        {Array.from({length: SKELETON_COUNT}).map((_, index) => (
+          <Surface key={`payment-skeleton-${index}`} style={styles.card} elevation={2}>
+            <View style={styles.skeletonCardContent}>
+              <View style={[styles.skeletonLine, styles.skeletonLineWide]} />
+              <View style={[styles.skeletonLine, styles.skeletonLineMedium]} />
+              <View style={[styles.skeletonBlock, styles.skeletonAmount]} />
+              <View style={[styles.skeletonBlock, styles.skeletonNotes]} />
+              <View style={styles.skeletonActionRow}>
+                <View style={[styles.skeletonBlock, styles.skeletonButton]} />
+                <View style={[styles.skeletonBlock, styles.skeletonButton]} />
+                <View style={[styles.skeletonBlock, styles.skeletonButton]} />
               </View>
             </View>
-            <Chip style={styles.statusChip} icon="info">
-              {payment.paymentStatus.toUpperCase()}
-            </Chip>
-          </View>
+          </Surface>
+        ))}
+      </View>
+    ),
+    [],
+  );
 
-          <View style={styles.amountRow}>
-            <Text variant="headlineSmall" style={styles.amountText}>
-              ₱{payment.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
-            </Text>
-            <Text variant="bodySmall" style={styles.subtleText}>
-              Created {new Date(payment.createdAt).toLocaleString()}
-            </Text>
-          </View>
+  const renderEmptyComponent = useCallback(() => {
+    if (loading) {
+      return renderSkeletons;
+    }
 
-          {payment.notes ? (
-            <Card style={styles.notesCard}>
-              <Card.Content>
-                <Text variant="titleSmall" style={styles.notesTitle}>
-                  Notes
-                </Text>
-                <Text variant="bodySmall">{payment.notes}</Text>
-              </Card.Content>
-            </Card>
-          ) : null}
-
-          <TextInput
-            mode="outlined"
-            label="Admin notes"
-            placeholder="Document reason for changes"
-            value={notes}
-            onChangeText={setNotes}
-            style={styles.notesInput}
-            multiline
-          />
-
-          {paymentActions(payment)}
+    return (
+      <Card style={styles.emptyCard}>
+        <Card.Content>
+          <Text variant="titleMedium" style={styles.emptyTitle}>
+            No payments found
+          </Text>
+          <Text variant="bodyMedium" style={styles.emptyText}>
+            Try refreshing or adjusting your filters.
+          </Text>
         </Card.Content>
       </Card>
     );
-  };
+  }, [loading, renderSkeletons]);
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}>
-        <Text variant="headlineMedium" style={styles.title}>
-          Payments Management
-        </Text>
-        <Text variant="bodyMedium" style={styles.subtitle}>
-          Track caregiver payouts, resolve disputes, and manage refunds.
-        </Text>
+      <FlatList
+        data={filteredPayments}
+        keyExtractor={item => item.id}
+        renderItem={renderPaymentCard}
+        contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={renderEmptyComponent}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      />
 
-        <Searchbar
-          placeholder="Search payments by user or booking"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmitEditing={loadPayments}
-          style={styles.searchbar}
-        />
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-          {STATUS_FILTERS.map(filter => (
-            <Chip
-              key={filter.value}
-              icon={filter.icon}
-              mode={statusFilter === filter.value ? 'flat' : 'outlined'}
-              style={[styles.filterChip, statusFilter === filter.value && {backgroundColor: filter.color + '33'}]}
-              onPress={() => setStatusFilter(filter.value)}>
-              {filter.label}
-            </Chip>
-          ))}
-        </ScrollView>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" />
-            <Text style={styles.loadingText}>Loading payments...</Text>
-          </View>
-        ) : filteredPayments.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.emptyTitle}>
-                No payments found
-              </Text>
-              <Text variant="bodyMedium" style={styles.emptyText}>
-                Try refreshing or adjusting your filters.
-              </Text>
-            </Card.Content>
-          </Card>
-        ) : (
-          filteredPayments.map(renderPaymentCard)
-        )}
-      </ScrollView>
-
-      <FAB icon="refresh" onPress={loadPayments} style={styles.fab} disabled={loading} />
+      <FAB icon="refresh" onPress={() => loadPayments()} style={styles.fab} disabled={loading} />
 
       <Portal>
         <Dialog visible={refundDialog.visible} onDismiss={() => setRefundDialog({visible: false, paymentId: null, reason: ''})}>
@@ -281,7 +430,7 @@ export default function PaymentsManagementScreen() {
             <Button onPress={() => setRefundDialog({visible: false, paymentId: null, reason: ''})}>
               Cancel
             </Button>
-            <Button mode="contained" onPress={handleRefund}>
+            <Button mode="contained" onPress={handleRefund} loading={refundLoadingId === refundDialog.paymentId} disabled={refundLoadingId === refundDialog.paymentId}>
               Confirm
             </Button>
           </Dialog.Actions>
@@ -296,9 +445,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  scrollContent: {
+  listContent: {
     padding: 16,
     paddingBottom: 96,
+  },
+  listSeparator: {
+    height: 16,
+  },
+  headerContainer: {
+    marginBottom: 16,
   },
   title: {
     textAlign: 'center',
@@ -320,17 +475,39 @@ const styles = StyleSheet.create({
   filterChip: {
     marginRight: 8,
   },
-  loadingContainer: {
-    paddingVertical: 48,
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    color: '#666',
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 12,
   },
   card: {
     marginBottom: 16,
     elevation: 2,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  statCard: {
+    flexGrow: 1,
+    flexBasis: '48%',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  statIconWrapper: {
+    alignSelf: 'flex-start',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f0f0ff',
+    marginBottom: 12,
+  },
+  statValue: {
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  statLabel: {
+    color: '#757575',
   },
   headerRow: {
     flexDirection: 'row',
@@ -403,5 +580,43 @@ const styles = StyleSheet.create({
   },
   dialogInput: {
     marginBottom: 12,
+  },
+  skeletonContainer: {
+    gap: 16,
+  },
+  skeletonCardContent: {
+    padding: 16,
+    gap: 12,
+  },
+  skeletonLine: {
+    height: 12,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 6,
+  },
+  skeletonLineWide: {
+    width: '70%',
+  },
+  skeletonLineMedium: {
+    width: '50%',
+  },
+  skeletonBlock: {
+    backgroundColor: '#e0e0e0',
+    borderRadius: 8,
+  },
+  skeletonAmount: {
+    height: 28,
+    width: '60%',
+  },
+  skeletonNotes: {
+    height: 80,
+    width: '100%',
+  },
+  skeletonActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  skeletonButton: {
+    flex: 1,
+    height: 36,
   },
 });

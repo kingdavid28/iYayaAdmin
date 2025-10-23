@@ -84,13 +84,27 @@ const mapJobRecord = (row: JobRow | null | undefined): Job => {
     resolveRelation<UserReference>(row.parent) ??
     resolveRelation<UserReference>(row.parentId) ??
     resolveRelation<UserReference>(row.parent_id) ??
-    resolveRelation<UserReference>(row.parentInfo);
+    resolveRelation<UserReference>(row.parentInfo) ??
+    (() => {
+      const parentId = (row as any).parent_id;
+      return typeof parentId === 'string' && parentId ? {
+        name: `Parent ${parentId.slice(-8)}`,
+        email: `parent.${parentId.slice(-8)}@example.com`
+      } : undefined;
+    })();
 
   const caregiverSource =
     resolveRelation<UserReference>(row.caregiver) ??
     resolveRelation<UserReference>(row.caregiverId) ??
     resolveRelation<UserReference>(row.caregiver_id) ??
-    resolveRelation<UserReference>(row.caregiverInfo);
+    resolveRelation<UserReference>(row.caregiverInfo) ??
+    (() => {
+      const caregiverId = (row as any).caregiver_id;
+      return typeof caregiverId === 'string' && caregiverId ? {
+        name: `Caregiver ${caregiverId.slice(-8)}`,
+        email: `caregiver.${caregiverId.slice(-8)}@example.com`
+      } : undefined;
+    })();
 
   const jobDetails: JobReference | undefined =
     resolveRelation<JobReference>(row.job) ??
@@ -103,7 +117,22 @@ const mapJobRecord = (row: JobRow | null | undefined): Job => {
     description: row.description ?? "",
     status: row.status ?? "pending",
     location: row.location ?? jobDetails?.location ?? "Unknown location",
-    budget: row.budget ?? jobDetails?.budget ?? 0,
+    budget: (() => {
+      // If budget is explicitly set and > 0, use it
+      if (typeof row.budget === 'number' && row.budget > 0) {
+        return row.budget;
+      }
+      // If hourly_rate is set, use it as the budget (assuming per hour)
+      if (typeof row.hourly_rate === 'number' && row.hourly_rate > 0) {
+        return row.hourly_rate;
+      }
+      // If jobDetails has budget, use that
+      if (typeof jobDetails?.budget === 'number' && jobDetails.budget > 0) {
+        return jobDetails.budget;
+      }
+      // Default to 0 only if nothing is available
+      return 0;
+    })(),
     parentId: {
       name: parentSource?.name ?? "Unknown Parent",
       email: parentSource?.email ?? "unknown@example.com",
@@ -165,6 +194,7 @@ export const fetchJobs = async (
         status,
         location,
         budget,
+        hourly_rate,
         parent:parent_id(name,email),
         caregiver:caregiver_id(name,email),
         createdAt:created_at,
@@ -259,33 +289,49 @@ export const reopenJob = async (jobId: string) =>
     "Failed to reopen job",
   );
 
+export const createJob = async (jobData: {
+  title: string;
+  description: string;
+  location: string;
+  budget?: number;
+  hourly_rate?: number;
+  parent_id?: string;
+  caregiver_id?: string;
+}) => {
+  return handleJobApiResponse(
+    adminApi.createJob(jobData) as Promise<ApiResponse<JobRow>>,
+    "Failed to create job",
+  );
+};
+
+export const updateJob = async (
+  jobId: string,
+  updates: {
+    title?: string;
+    description?: string;
+    location?: string;
+    budget?: number;
+    hourly_rate?: number;
+    parent_id?: string;
+    caregiver_id?: string;
+  },
+) => {
+  return handleJobApiResponse(
+    adminApi.updateJob(jobId, updates) as Promise<ApiResponse<JobRow>>,
+    "Failed to update job",
+  );
+};
+
+export const deleteJob = async (jobId: string, reason?: string) => {
+  return handleJobApiResponse(
+    adminApi.deleteJob(jobId, reason ? { reason } : undefined) as Promise<ApiResponse<JobRow>>,
+    "Failed to delete job",
+  );
+};
+
 export const fetchJobById = async (jobId: string): Promise<Job | null> => {
-  const { data, error } = await supabase
-    .from("jobs")
-    .select(
-      `
-        id,
-        title,
-        description,
-        status,
-        location,
-        budget,
-        parent:parent_id(name,email),
-        caregiver:caregiver_id(name,email),
-        createdAt:created_at,
-        updatedAt:updated_at
-      `,
-    )
-    .eq("id", jobId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to fetch job: ${error.message}`);
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  return mapJobRecord(data);
+  return handleJobApiResponse(
+    adminApi.getJobById(jobId) as Promise<ApiResponse<JobRow>>,
+    "Failed to fetch job",
+  );
 };

@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS children (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   parent_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  date_of_birth DATE NOT NULL,
+  birth_date DATE,
   gender TEXT CHECK (gender IN ('male', 'female', 'other')),
   special_needs TEXT,
   allergies TEXT,
@@ -256,6 +256,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   caregiver_id UUID REFERENCES users(id) ON DELETE CASCADE,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment TEXT,
+  status TEXT DEFAULT 'published' CHECK (status IN ('published', 'hidden')),
+  moderation_note TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -301,6 +303,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation
 CREATE INDEX IF NOT EXISTS idx_reviews_booking_id ON reviews(booking_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_id ON reviews(reviewee_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_caregiver_id ON reviews(caregiver_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
 CREATE INDEX IF NOT EXISTS idx_availability_caregiver_id ON availability(caregiver_id);

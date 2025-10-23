@@ -199,6 +199,26 @@ export const adminApi = {
 
   getJobById: (id: string) => apiService.get(`/admin/jobs/${id}`),
 
+  createJob: (payload: {
+    title: string;
+    description: string;
+    location: string;
+    budget?: number;
+    hourly_rate?: number;
+    parent_id?: string;
+    caregiver_id?: string;
+  }) => apiService.post("/admin/jobs", payload),
+
+  updateJob: (jobId: string, payload: {
+    title?: string;
+    description?: string;
+    location?: string;
+    budget?: number;
+    hourly_rate?: number;
+    parent_id?: string;
+    caregiver_id?: string;
+  }) => apiService.put(`/admin/jobs/${jobId}`, payload),
+
   updateJobStatus: (jobId: string, status: string, reason?: string) =>
     apiService.patch(`/admin/jobs/${jobId}/status`, { status, reason }),
 
@@ -214,11 +234,13 @@ export const adminApi = {
   completeJob: (jobId: string) =>
     apiService.post(`/admin/jobs/${jobId}/complete`),
 
+  deleteJob: (jobId: string, payload?: { reason?: string }) =>
+    apiService.delete(`/admin/jobs/${jobId}`),
+
   reopenJob: (jobId: string) => apiService.post(`/admin/jobs/${jobId}/reopen`),
 
-  // Bookings
-  getBookings: (params?: { page?: number; limit?: number; status?: string }) =>
-    apiService.get("/admin/bookings", params),
+  getBookingById: (bookingId: string) =>
+    apiService.get(`/admin/bookings/${bookingId}`),
 
   updateBookingStatus: (bookingId: string, status: string, reason?: string) =>
     apiService.patch(`/admin/bookings/${bookingId}/status`, { status, reason }),

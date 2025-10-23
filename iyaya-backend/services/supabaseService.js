@@ -423,7 +423,20 @@ class JobService {
   static async findById(id) {
     const { data, error } = await supabase
       .from('jobs')
-      .select('*')
+      .select(`
+        id,
+        title,
+        description,
+        status,
+        location,
+        budget,
+        hourly_rate,
+        parent_id,
+        caregiver_id,
+        created_at,
+        updated_at,
+        parent:parent_id ( id, name, email, profile_image )
+      `)
       .eq('id', id)
       .single();
 
@@ -442,7 +455,8 @@ class JobService {
         status,
         job_status:status,
         location,
-        budget:hourly_rate,
+        budget,
+        hourly_rate,
         parent_id,
         caregiver_id,
         created_at,
@@ -463,6 +477,29 @@ class JobService {
     if (error) throw error;
     return { jobs: data, total: count, page, limit, stats: { total: count } };
     return { jobs: data, total: count, page, limit };
+  }
+
+  static applyJobSearchFilter(query, search) {
+    if (search && search.trim()) {
+      const sanitized = search.trim().replace(/[%_]/g, match => `\\${match}`);
+      const orClause = ['title', 'description', 'location']
+        .map(column => `${column}.ilike.%${sanitized}%`)
+        .join(',');
+      query = query.or(orClause);
+    }
+    return query;
+  }
+
+  static async update(id, updates) {
+    const { data, error } = await supabase
+      .from('jobs')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
   static async updateStatus(id, status) {
@@ -497,7 +534,13 @@ class BookingService {
   static async findById(id) {
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(
+        `*,
+        parent:parent_id ( id, name, email, profile_image ),
+        caregiver:caregiver_id ( id, name, email, profile_image ),
+        job:job_id ( id, title, job_status:status, location )
+      `
+      )
       .eq('id', id)
       .single();
 
@@ -538,7 +581,13 @@ class BookingService {
       .from('bookings')
       .update({ status })
       .eq('id', id)
-      .select()
+      .select(
+        `*,
+        parent:parent_id ( id, name, email, profile_image ),
+        caregiver:caregiver_id ( id, name, email, profile_image ),
+        job:job_id ( id, title, job_status:status, location )
+      `
+      )
       .single();
 
     if (error) throw error;

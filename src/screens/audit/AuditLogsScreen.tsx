@@ -6,16 +6,39 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import {
-  Text,
-  Card,
-  ActivityIndicator,
-  useTheme,
-  Chip,
-} from 'react-native-paper';
+import {Text, Card, ActivityIndicator, useTheme} from 'react-native-paper';
 import {Icon} from 'react-native-elements';
 import {AuditLog} from '../../types';
 import {fetchAuditLogs, type FetchAuditLogsOptions} from '../../services/auditService';
+
+const formatAction = (action: string) =>
+  action
+    .replace(/[-_]+/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+
+const formatDetailKey = (key: string) =>
+  key
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase())
+    .trim();
+
+const stringifyDetailValue = (value: unknown): string => {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => stringifyDetailValue(item)).join(', ');
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return '';
+};
 
 export default function AuditLogsScreen() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -99,64 +122,118 @@ export default function AuditLogsScreen() {
     return '#2196f3';
   };
 
-  const renderLogItem = ({ item: log }: { item: AuditLog }) => (
-    <Card style={styles.logCard}>
-      <Card.Content>
-        <View style={styles.logHeader}>
-          <View style={styles.logIconContainer}>
-            <Icon
-              name={getActionIcon(log.action)}
-              type="material"
-              color={getActionColor(log.action)}
-              size={24}
-            />
+  const renderLogItem = ({item: log}: {item: AuditLog}) => {
+    const detailEntries: Array<[string, unknown]> = [];
+    const appendEntries = (source?: Record<string, unknown>) => {
+      if (!source || typeof source !== 'object') {
+        return;
+      }
+      Object.entries(source).forEach(([key, value]) => {
+        if (key === 'method' || key === 'ip' || key === 'details') {
+          return;
+        }
+        if (value === null || value === undefined || value === '') {
+          return;
+        }
+        detailEntries.push([key, value]);
+      });
+    };
+
+    appendEntries(log.details);
+
+    const nestedDetails = log.details['details'];
+    if (nestedDetails && typeof nestedDetails === 'object' && !Array.isArray(nestedDetails)) {
+      appendEntries(nestedDetails as Record<string, unknown>);
+    }
+
+    appendEntries(log.metadata);
+
+    const actionSource = typeof log.details['method'] === 'string' ? log.details['method'] : undefined;
+    const ipAddress = typeof log.ip === 'string' && log.ip.length > 0
+      ? log.ip
+      : typeof log.details['ip'] === 'string'
+        ? log.details['ip']
+        : undefined;
+    const adminName = log.adminId?.name?.trim();
+    const adminEmail = log.adminId?.email?.trim();
+    const performerText = adminName && adminEmail
+      ? `${adminName} (${adminEmail})`
+      : adminName ?? adminEmail ?? 'System Action';
+
+    return (
+      <Card style={styles.logCard}>
+        <Card.Content>
+          <View style={styles.logHeader}>
+            <View style={styles.logIconContainer}>
+              <Icon
+                name={getActionIcon(log.action)}
+                type="material"
+                color={getActionColor(log.action)}
+                size={24}
+              />
+            </View>
+            <View style={styles.logInfo}>
+              <Text variant="titleMedium" style={styles.logAction}>
+                {formatAction(log.action)}
+              </Text>
+              <Text variant="bodySmall" style={styles.logTimestamp}>
+                {formatDate(log.timestamp)}
+              </Text>
+            </View>
           </View>
-          <View style={styles.logInfo}>
-            <Text variant="titleMedium" style={styles.logAction}>
-              {log.action.replace(/_/g, ' ')}
+
+          <View style={styles.section}>
+            <Text variant="bodySmall" style={[styles.infoText, {color: theme.colors.onSurface}]}> 
+              <Text style={[styles.infoLabel, {color: theme.colors.onSurfaceVariant}]}>Performed by: </Text>
+              {performerText}
             </Text>
-            <Text variant="bodySmall" style={styles.logTimestamp}>
-              {formatDate(log.timestamp)}
-            </Text>
+            {log.targetId ? (
+              <Text variant="bodySmall" style={[styles.infoText, {color: theme.colors.onSurface}]}> 
+                <Text style={[styles.infoLabel, {color: theme.colors.onSurfaceVariant}]}>Target: </Text>
+                {log.targetId}
+              </Text>
+            ) : null}
+            {actionSource ? (
+              <Text variant="bodySmall" style={[styles.infoText, {color: theme.colors.onSurface}]}> 
+                <Text style={[styles.infoLabel, {color: theme.colors.onSurfaceVariant}]}>Action Source: </Text>
+                {actionSource.toUpperCase()}
+              </Text>
+            ) : null}
+            {ipAddress ? (
+              <Text variant="bodySmall" style={[styles.infoText, {color: theme.colors.onSurface}]}> 
+                <Text style={[styles.infoLabel, {color: theme.colors.onSurfaceVariant}]}>IP Address: </Text>
+                {ipAddress}
+              </Text>
+            ) : null}
           </View>
-        </View>
 
-        <View style={styles.logDetails}>
-          <Text variant="bodySmall" style={styles.logAdmin}>
-            Admin: {log.adminId.name} ({log.adminId.email})
-          </Text>
-
-          {log.targetId && (
-            <Text variant="bodySmall" style={styles.logTarget}>
-              Target ID: {log.targetId}
-            </Text>
-          )}
-
-          {log.details.method && (
-            <Text variant="bodySmall" style={styles.logMethod}>
-              Method: {log.details.method.toUpperCase()}
-            </Text>
-          )}
-
-          {log.details.ip && (
-            <Text variant="bodySmall" style={styles.logIP}>
-              IP: {log.details.ip}
-            </Text>
-          )}
-        </View>
-
-        {log.details.details && Object.keys(log.details.details).length > 0 && (
-          <View style={styles.logMetadata}>
-            {Object.entries(log.details.details).map(([key, value]) => (
-              <Chip key={key} style={styles.metaChip}>
-                {key}: {String(value)}
-              </Chip>
-            ))}
-          </View>
-        )}
-      </Card.Content>
-    </Card>
-  );
+          {detailEntries.length > 0 ? (
+            <View style={styles.section}>
+              <Text variant="bodySmall" style={[styles.sectionTitle, {color: theme.colors.primary}]}>Additional Details</Text>
+              {detailEntries.map(([key, value]) => {
+                const formattedValue = stringifyDetailValue(value);
+                if (!formattedValue) {
+                  return null;
+                }
+                return (
+                  <Text
+                    key={key}
+                    variant="bodySmall"
+                    style={[styles.infoText, {color: theme.colors.onSurface}]}
+                  >
+                    <Text style={[styles.infoLabel, {color: theme.colors.onSurfaceVariant}]}>
+                      {`${formatDetailKey(key)}: `}
+                    </Text>
+                    {formattedValue}
+                  </Text>
+                );
+              })}
+            </View>
+          ) : null}
+        </Card.Content>
+      </Card>
+    );
+  };
 
   if (loading) {
     return (
@@ -250,33 +327,18 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  logDetails: {
-    marginBottom: 12,
+  section: {
+    marginTop: 12,
   },
-  logAdmin: {
-    color: '#666',
-    marginBottom: 4,
+  infoText: {
+    marginBottom: 6,
   },
-  logTarget: {
-    color: '#666',
-    marginBottom: 4,
+  infoLabel: {
+    fontWeight: '600',
   },
-  logMethod: {
-    color: '#666',
-    marginBottom: 4,
-  },
-  logIP: {
-    color: '#666',
-    marginBottom: 4,
-  },
-  logMetadata: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  metaChip: {
-    marginRight: 8,
-    marginBottom: 8,
-    backgroundColor: '#e3f2fd',
+  sectionTitle: {
+    marginBottom: 6,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

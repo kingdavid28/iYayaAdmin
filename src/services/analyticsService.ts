@@ -43,6 +43,15 @@ const getDateRanges = (timeframe: Timeframe) => {
 
 const formatISO = (date: Date) => date.toISOString();
 
+const isTableMissingError = (error: any) => {
+  if (!error) {
+    return false;
+  }
+  const message = String(error.message ?? '').toLowerCase();
+  const details = String(error.details ?? '').toLowerCase();
+  return error.code === '42P01' || message.includes('schema cache') || message.includes('does not exist') || details.includes('does not exist');
+};
+
 const countRows = async (
   table: string,
   range: { start: Date; end: Date },
@@ -89,7 +98,12 @@ const sumColumn = async (
     throw new Error(`Failed to aggregate ${column} on ${table}: ${error.message}`);
   }
 
-  return (data ?? []).reduce((acc, row) => acc + Number(row[column] ?? 0), 0);
+  const rows: any[] = Array.isArray(data) ? (data as any[]) : [];
+
+  return rows.reduce((acc, row: any) => {
+    const value = Number(row?.[column] ?? 0);
+    return acc + (Number.isNaN(value) ? 0 : value);
+  }, 0);
 };
 
 const fetchRows = async (
@@ -131,7 +145,7 @@ const buildTrend = (
     buckets.set(isoDate, current + valueSelector(row));
   });
 
-  return Array.from(buckets.entries())
+  return Array.from(buckets.entries() as Iterable<[string, number]>)
     .sort(([a], [b]) => (a > b ? 1 : -1))
     .map(([date, value]) => ({
       date,
@@ -171,10 +185,7 @@ export const fetchAnalyticsSummary = async (timeframe: Timeframe): Promise<Analy
     jobsPrevious,
     bookingsCurrent,
     bookingsPrevious,
-    revenueCurrent,
-    revenuePrevious,
     bookingRows,
-    paymentRows,
     newUserRows,
   ] = await Promise.all([
     countRows('users', ranges.current),
@@ -185,15 +196,34 @@ export const fetchAnalyticsSummary = async (timeframe: Timeframe): Promise<Analy
     countRows('jobs', ranges.previous),
     countRows('bookings', ranges.current),
     countRows('bookings', ranges.previous),
-    sumColumn('payments', 'total_amount', ranges.current, query => query.eq('payment_status', 'paid')),
-    sumColumn('payments', 'total_amount', ranges.previous, query => query.eq('payment_status', 'paid')),
     fetchRows('bookings', 'id, created_at', ranges.current),
-    fetchRows('payments', 'id, created_at, total_amount', ranges.current, query => query.eq('payment_status', 'paid')),
     fetchRows('users', 'id, created_at', ranges.current),
   ]);
 
+  let revenueAvailable = true;
+  let revenueCurrent = 0;
+  let revenuePrevious = 0;
+  let paymentRows: Record<string, any>[] = [];
+
+  try {
+    revenueCurrent = await sumColumn('payments', 'total_amount', ranges.current, query => query.eq('payment_status', 'paid'));
+    revenuePrevious = await sumColumn('payments', 'total_amount', ranges.previous, query => query.eq('payment_status', 'paid'));
+    paymentRows = await fetchRows('payments', 'id, created_at, total_amount', ranges.current, query => query.eq('payment_status', 'paid'));
+  } catch (error) {
+    if (isTableMissingError(error)) {
+      revenueAvailable = false;
+      revenueCurrent = 0;
+      revenuePrevious = 0;
+      paymentRows = [];
+    } else {
+      throw error;
+    }
+  }
+
   const bookingsTrend = buildTrend(bookingRows, 'created_at', () => 1).slice(-10);
-  const revenueTrend = buildTrend(paymentRows, 'created_at', row => Number(row.total_amount ?? 0)).slice(-10);
+  const revenueTrend = revenueAvailable
+    ? buildTrend(paymentRows, 'created_at', row => Number((row as Record<string, any>).total_amount ?? 0)).slice(-10)
+    : [];
   const newUsersTrend = buildTrend(newUserRows, 'created_at', () => 1).slice(-10);
 
   const usersDelta = calculateDelta(usersCurrent, usersPrevious);
@@ -225,15 +255,17 @@ export const fetchAnalyticsSummary = async (timeframe: Timeframe): Promise<Analy
         value: bookingsCurrent,
         ...bookingsDelta,
       },
-      revenue: {
-        label: 'Revenue',
-        value: Number(revenueCurrent.toFixed(2)),
-        ...revenueDelta,
-      },
+      revenue: revenueAvailable
+        ? {
+            label: 'Revenue',
+            value: Number(revenueCurrent.toFixed(2)),
+            ...revenueDelta,
+          }
+        : undefined,
     },
     trends: {
       bookings: bookingsTrend,
-      revenue: revenueTrend,
+      revenue: revenueAvailable ? revenueTrend : undefined,
       newUsers: newUsersTrend,
     },
   };

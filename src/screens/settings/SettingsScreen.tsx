@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   View,
   StyleSheet,
@@ -19,21 +19,20 @@ import {
 } from 'react-native-paper';
 import {Icon} from 'react-native-elements';
 import {adminApi} from '../../services/apiService';
-
-interface SystemSettings {
-  maintenanceMode: boolean;
-  registrationEnabled: boolean;
-  emailVerificationRequired: boolean;
-  backgroundCheckRequired: boolean;
-}
+import {SystemSettings} from '../../types';
 
 export default function SettingsScreen() {
-  const [settings, setSettings] = useState<SystemSettings>({
-    maintenanceMode: false,
-    registrationEnabled: true,
-    emailVerificationRequired: true,
-    backgroundCheckRequired: true,
-  });
+  const DEFAULT_SETTINGS: SystemSettings = useMemo(
+    () => ({
+      maintenanceMode: false,
+      registrationEnabled: true,
+      emailVerificationRequired: true,
+      backgroundCheckRequired: true,
+    }),
+    [],
+  );
+
+  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exportDialogVisible, setExportDialogVisible] = useState(false);
@@ -45,10 +44,15 @@ export default function SettingsScreen() {
     try {
       const response = await adminApi.getSettings();
       if (response.success && response.data) {
-        setSettings(response.data);
+        const normalized = {
+          ...DEFAULT_SETTINGS,
+          ...(response.data as Partial<SystemSettings>),
+        } satisfies SystemSettings;
+        setSettings(normalized);
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to load settings');
+      setSettings(DEFAULT_SETTINGS);
     } finally {
       setLoading(false);
     }
@@ -61,17 +65,25 @@ export default function SettingsScreen() {
   const handleSettingChange = async (key: keyof SystemSettings, value: boolean) => {
     setSaving(true);
     try {
-      const updatedSettings = { ...settings, [key]: value };
+      const updatedSettings: SystemSettings = {
+        ...settings,
+        [key]: value,
+      };
       const response = await adminApi.updateSettings(updatedSettings);
 
-      if (response.success) {
-        setSettings(updatedSettings);
+      if (response.success && response.data) {
+        const normalized = {
+          ...DEFAULT_SETTINGS,
+          ...(response.data as Partial<SystemSettings>),
+        } satisfies SystemSettings;
+        setSettings(normalized);
         Alert.alert('Success', 'Settings updated successfully');
       } else {
         throw new Error('Failed to update settings');
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update settings');
+      setSettings(prev => ({...prev}));
     } finally {
       setSaving(false);
     }
