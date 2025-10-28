@@ -57,84 +57,81 @@ class ApiService {
     endpoint: string,
     params?: Record<string, any>,
   ): Promise<ApiResponse<T>> {
-    try {
-      const url = new URL(`${apiBaseUrlWithApiPrefix}${endpoint}`);
-      if (params) {
-        Object.keys(params).forEach((key) => {
-          if (params[key] !== undefined) {
-            url.searchParams.append(key, params[key].toString());
-          }
-        });
-      }
-
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: await this.getHeaders(),
-      });
-
-      return await this.handleResponse<T>(response);
-    } catch (error) {
-      console.error("API GET error:", error);
-      throw error;
-    }
+    return this.requestWithTimeout('GET', endpoint, undefined, params);
   }
 
   async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(`${apiBaseUrlWithApiPrefix}${endpoint}`, {
-        method: "POST",
-        headers: await this.getHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      return await this.handleResponse<T>(response);
-    } catch (error) {
-      console.error("API POST error:", error);
-      throw error;
-    }
+    return this.requestWithTimeout('POST', endpoint, data);
   }
 
   async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(`${apiBaseUrlWithApiPrefix}${endpoint}`, {
-        method: "PUT",
-        headers: await this.getHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      return await this.handleResponse<T>(response);
-    } catch (error) {
-      console.error("API PUT error:", error);
-      throw error;
-    }
+    return this.requestWithTimeout('PUT', endpoint, data);
   }
 
   async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(`${apiBaseUrlWithApiPrefix}${endpoint}`, {
-        method: "PATCH",
-        headers: await this.getHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      return await this.handleResponse<T>(response);
-    } catch (error) {
-      console.error("API PATCH error:", error);
-      throw error;
-    }
+    return this.requestWithTimeout('PATCH', endpoint, data);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+    return this.requestWithTimeout('DELETE', endpoint);
+  }
+
+  async requestWithTimeout<T>(
+    method: string,
+    endpoint: string,
+    data?: any,
+    params?: Record<string, any>
+  ): Promise<ApiResponse<T>> {
+    return new Promise((resolve, reject) => {
+      const timeoutMs = parseInt(getEnvVar('EXPO_PUBLIC_API_TIMEOUT') || '30000');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error('Network request timed out'));
+      }, timeoutMs);
+
+      this.performRequest<T>(method, endpoint, data, params, controller.signal)
+        .then(resolve)
+        .catch(reject)
+        .finally(() => {
+          clearTimeout(timeoutId);
+        });
+    });
+  }
+
+  private async performRequest<T>(
+    method: string,
+    endpoint: string,
+    data?: any,
+    params?: Record<string, any>,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${apiBaseUrlWithApiPrefix}${endpoint}`, {
-        method: "DELETE",
+      let url = `${apiBaseUrlWithApiPrefix}${endpoint}`;
+      if (params) {
+        const urlObj = new URL(url);
+        Object.keys(params).forEach((key) => {
+          if (params[key] !== undefined) {
+            urlObj.searchParams.append(key, params[key].toString());
+          }
+        });
+        url = urlObj.toString();
+      }
+
+      const response = await fetch(url, {
+        method,
         headers: await this.getHeaders(),
+        body: data ? JSON.stringify(data) : undefined,
+        signal,
       });
 
       return await this.handleResponse<T>(response);
     } catch (error) {
-      console.error("API DELETE error:", error);
-      throw error;
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
+        throw new Error('Network request timed out');
+      }
+      console.error(`API ${method} error:`, error);
+      throw error instanceof Error ? error : new Error('Unknown API error');
     }
   }
 }
@@ -238,6 +235,14 @@ export const adminApi = {
     apiService.delete(`/admin/jobs/${jobId}`),
 
   reopenJob: (jobId: string) => apiService.post(`/admin/jobs/${jobId}/reopen`),
+
+  // Bookings
+  getBookings: (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+  }) => apiService.get("/admin/bookings", params),
 
   getBookingById: (bookingId: string) =>
     apiService.get(`/admin/bookings/${bookingId}`),

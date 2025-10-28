@@ -15,62 +15,57 @@ const sanitizeSearchTerm = (term: string) =>
 export const fetchChildren = async (options: FetchChildrenOptions = {}): Promise<ChildProfile[]> => {
   let query = supabase
     .from('children')
-    .select(
-      `
-        id,
-        parentId:parent_id,
-        parent:parent_id(id,name,email),
-        name,
-        gender,
-        specialNeeds:special_needs,
-        allergies,
-        notes,
-        emergencyContact:emergency_contact,
-        createdAt:created_at,
-        updatedAt:updated_at
-      `
-    )
+    .select(`
+      id,
+      parent_id,
+      name,
+      gender,
+      special_needs,
+      allergies,
+      notes,
+      emergency_contact,
+      created_at,
+      updated_at,
+      parent:parent_id (id, name, email)
+    `)
     .order('created_at', { ascending: false });
 
   if (options.search && options.search.trim()) {
-    const sanitized = sanitizeSearchTerm(options.search);
-    const orClause = ['name', 'parent_id.name', 'parent_id.email']
-      .map(column => `${column}.ilike.%${sanitized}%`)
-      .join(',');
-    query = query.or(orClause);
+    query = query.ilike('name', `%${options.search.trim()}%`);
   }
 
-  const { data, error } = await query;
+  const {data, error} = await query;
+
   if (error) {
+    console.error('[childrenService] fetch error:', error);
     throw new Error(`Failed to fetch child profiles: ${error.message}`);
   }
 
-  return (data ?? []).map((row: any) => {
-    const parent = Array.isArray(row.parent) ? row.parent[0] : row.parent;
-    let emergencyContact = row.emergencyContact ?? null;
+  return (data ?? []).map(row => {
+    const rawParent = Array.isArray(row.parent) ? row.parent[0] : row.parent;
+    const parentRecord = (rawParent ?? null) as Record<string, unknown> | null;
+    const parentName = typeof parentRecord?.name === 'string' ? (parentRecord.name as string) : undefined;
+    const parentEmail = typeof parentRecord?.email === 'string' ? (parentRecord.email as string) : undefined;
 
-    if (typeof emergencyContact === 'string') {
-      try {
-        emergencyContact = JSON.parse(emergencyContact);
-      } catch (error) {
-        console.warn('[childrenService] Failed to parse emergency_contact JSON', error);
-      }
-    }
+    const parentInfo = parentName || parentEmail
+      ? {
+          name: parentName,
+          email: parentEmail,
+        }
+      : undefined;
 
     return {
       id: row.id,
-      parentId: row.parentId,
-      parentInfo: {
-        name: parent?.name ?? undefined,
-        email: parent?.email ?? undefined,
-      },
+      parentId: row.parent_id,
+      parentInfo,
       name: row.name,
-      specialNeeds: row.specialNeeds ?? undefined,
-      allergies: row.allergies ?? undefined,
-      notes: row.notes ?? undefined,
-      emergencyContact,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+      gender: row.gender,
+      specialNeeds: row.special_needs,
+      allergies: row.allergies,
+      notes: row.notes,
+      emergencyContact: row.emergency_contact,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     } satisfies ChildProfile;
   });
 };

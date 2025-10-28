@@ -187,6 +187,7 @@ export type NotificationType =
   | 'booking_cancelled'
   | 'review'
   | 'payment'
+  | 'payment_proof'
   | 'system';
 
 export interface NotificationItem {

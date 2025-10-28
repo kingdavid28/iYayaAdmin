@@ -14,6 +14,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   'booking_cancelled',
   'review',
   'payment',
+  'payment_proof',
   'system',
 ];
 
@@ -23,6 +24,13 @@ export interface NotificationStats {
   targeted: number;
   broadcasts: number;
   perType: Record<NotificationType, number>;
+}
+
+interface NotificationStatsRow {
+  id: string;
+  type: NotificationType;
+  read?: boolean | null;
+  userId?: string | null;
 }
 
 const sanitizeSearchTerm = (term: string) =>
@@ -97,6 +105,7 @@ export const fetchNotifications = async (options: FetchNotificationsOptions = {}
   }
 
   const { data, error } = await query;
+  console.log('[notifications] raw rows', Array.isArray(data) ? data.length : data ? 1 : 0, error);
   if (error) {
     throw new Error(`Failed to fetch notifications: ${error.message}`);
   }
@@ -182,47 +191,55 @@ export const deleteNotification = async (notificationId: string) => {
   }
 };
 
-const runCountQuery = async (query: any, context: string): Promise<number> => {
-  const { count, error } = await query;
-  if (error) {
-    throw new Error(`Failed to fetch ${context}: ${error.message}`);
-  }
-  return count ?? 0;
+const initializePerType = (): Record<NotificationType, number> => {
+  return NOTIFICATION_TYPES.reduce((acc, type) => {
+    acc[type] = 0;
+    return acc;
+  }, {} as Record<NotificationType, number>);
 };
 
 export const fetchNotificationStats = async (): Promise<NotificationStats> => {
-  const selectOptions = { count: 'exact' as const, head: true };
+  const { data, error } = await supabase
+    .from('notifications')
+    .select(
+      `
+        id,
+        type,
+        read,
+        userId:user_id
+      `,
+      { count: 'exact' },
+    );
 
-  const [total, unread, targeted, broadcasts] = await Promise.all([
-    runCountQuery(supabase.from('notifications').select('id', selectOptions), 'total notification count'),
-    runCountQuery(
-      supabase.from('notifications').select('id', selectOptions).eq('read', false),
-      'unread notification count',
-    ),
-    runCountQuery(
-      supabase.from('notifications').select('id', selectOptions).not('user_id', 'is', null),
-      'targeted notification count',
-    ),
-    runCountQuery(
-      supabase.from('notifications').select('id', selectOptions).is('user_id', null),
-      'broadcast notification count',
-    ),
-  ]);
+  if (error) {
+    throw new Error(`Failed to fetch notification stats: ${error.message}`);
+  }
 
-  const perTypeEntries = await Promise.all(
-    NOTIFICATION_TYPES.map(async type => {
-      const count = await runCountQuery(
-        supabase.from('notifications').select('id', selectOptions).eq('type', type),
-        `notification count for type ${type}`,
-      );
-      return [type, count] as const;
-    }),
-  );
+  const rows: NotificationStatsRow[] = Array.isArray(data) ? data : data ? [data as NotificationStatsRow] : [];
 
-  const perType = perTypeEntries.reduce((acc, [type, count]) => {
-    acc[type] = count;
-    return acc;
-  }, {} as Record<NotificationType, number>);
+  const perType = initializePerType();
+  let total = 0;
+  let unread = 0;
+  let targeted = 0;
+
+  for (const row of rows) {
+    total += 1;
+
+    if (!row.read) {
+      unread += 1;
+    }
+
+    if (row.type in perType) {
+      perType[row.type] += 1;
+    }
+
+    const isTargeted = typeof row.userId === 'string' && row.userId.trim().length > 0;
+    if (isTargeted) {
+      targeted += 1;
+    }
+  }
+
+  const broadcasts = total - targeted;
 
   return {
     total,
@@ -230,5 +247,6 @@ export const fetchNotificationStats = async (): Promise<NotificationStats> => {
     targeted,
     broadcasts,
     perType,
-  } satisfies NotificationStats;
+  };
 };
+

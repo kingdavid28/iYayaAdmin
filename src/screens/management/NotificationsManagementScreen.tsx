@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {Alert, FlatList, RefreshControl, ScrollView, StyleSheet, View} from 'react-native';
+import {Alert, FlatList, Image, Linking, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View} from 'react-native';
 import {
   ActivityIndicator,
   Avatar,
@@ -36,6 +36,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   booking_cancelled: 'Booking Cancelled',
   review: 'Review',
   payment: 'Payment',
+  payment_proof: 'Payment Proof',
   system: 'System',
 };
 
@@ -45,6 +46,142 @@ const composeInitialState = {
   title: '',
   message: '',
   data: '',
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const pickString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
+  }
+  return undefined;
+};
+
+const pickNumber = (...values: unknown[]): number | undefined => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+};
+
+const formatCurrency = (value: number | undefined): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  try {
+    return value.toLocaleString(undefined, {
+      style: 'currency',
+      currency: 'PHP',
+    });
+  } catch (error) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+};
+
+const summarizeProof = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+  if (value.length > 60) {
+    return `Image data (${value.length} chars)`;
+  }
+  return value;
+};
+
+const isImageData = (value: string | undefined, mimeType?: string): boolean => {
+  if (!value) {
+    return false;
+  }
+  if (mimeType && mimeType.startsWith('image/')) {
+    return true;
+  }
+  if (/^data:image\//i.test(value)) {
+    return true;
+  }
+  if (/^https?:\/\//i.test(value)) {
+    return true;
+  }
+  return false;
+};
+
+const formatStatus = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  return value
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+};
+
+const formatLabel = (value: string): string =>
+  value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+
+const summarizeValue = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return 'Not provided';
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return 'Not provided';
+    }
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+    if (trimmed.length > 80) {
+      return `${trimmed.slice(0, 77)}… (${trimmed.length} chars)`;
+    }
+    return trimmed;
+  }
+
+  if (typeof value === 'number') {
+    return value.toLocaleString();
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
+
+  if (Array.isArray(value)) {
+    return `Array (${value.length} items)`;
+  }
+
+  if (isRecord(value)) {
+    const keys = Object.keys(value);
+    if (keys.length === 0) {
+      return 'Object (empty)';
+    }
+    return `Object keys: ${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '…' : ''}`;
+  }
+
+  return String(value);
 };
 
 function useDebouncedValue<T>(value: T, delay = 400) {
@@ -73,6 +210,17 @@ export default function NotificationsManagementScreen() {
   const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null);
   const debouncedQuery = useDebouncedValue(searchQuery);
   const [stats, setStats] = useState<NotificationStats | null>(null);
+  const [proofPreviewUri, setProofPreviewUri] = useState<string | null>(null);
+  const closeProofPreview = useCallback(() => setProofPreviewUri(null), []);
+  const handleOpenProofExternally = useCallback(() => {
+    if (!proofPreviewUri || !proofPreviewUri.startsWith('http')) {
+      return;
+    }
+    Linking.openURL(proofPreviewUri).catch(error => {
+      console.warn('Failed to open proof URL', error);
+    });
+  }, [proofPreviewUri]);
+  const isRemoteProof = useMemo(() => Boolean(proofPreviewUri?.startsWith('http')), [proofPreviewUri]);
 
   const closeComposeDialog = useCallback(() => {
     setComposeVisible(false);
@@ -199,11 +347,246 @@ export default function NotificationsManagementScreen() {
     [loadNotifications],
   );
 
+  const renderPayloadContent = useCallback(
+    (item: NotificationItem): React.ReactNode => {
+      if (!item.data) {
+        return null;
+      }
+
+      let normalizedData: unknown = item.data;
+
+      if (typeof normalizedData === 'string') {
+        const trimmed = normalizedData.trim();
+        if (!trimmed) {
+          return null;
+        }
+        try {
+          const parsed = JSON.parse(trimmed);
+          normalizedData = parsed;
+        } catch (error) {
+          return (
+            <Text variant="bodySmall" style={styles.jsonText}>
+              {summarizeValue(trimmed)}
+            </Text>
+          );
+        }
+      }
+
+      if (item.type === 'payment' && isRecord(normalizedData)) {
+        const data = normalizedData as Record<string, unknown>;
+        const bookingCandidate = data['booking'];
+        const booking = isRecord(bookingCandidate) ? bookingCandidate : undefined;
+        const paymentCandidate = data['payment'];
+        const payment = isRecord(paymentCandidate) ? paymentCandidate : undefined;
+
+        const bookingId = pickString(
+          data['bookingId'],
+          data['booking_id'],
+          booking?.['id'],
+        );
+
+        const paymentId = pickString(
+          data['paymentId'],
+          data['payment_id'],
+          payment?.['id'],
+          data['id'],
+        );
+
+        const amountNumber = pickNumber(
+          data['amount'],
+          data['totalAmount'],
+          data['total_amount'],
+          payment?.['amount'],
+          payment?.['total'],
+          payment?.['total_amount'],
+        );
+
+        const amountDisplay = formatCurrency(amountNumber) ?? pickString(data['amount']);
+
+        const statusDisplay = formatStatus(
+          pickString(
+            data['paymentStatus'],
+            data['payment_status'],
+            data['status'],
+            payment?.['status'],
+          ),
+        );
+
+        const proofRaw = pickString(
+          data['paymentProof'],
+          data['payment_proof'],
+          data['proofUrl'],
+          data['proof_url'],
+          payment?.['proof'],
+        );
+        const mimeTypeDisplay = pickString(
+          data['paymentProofMimeType'],
+          data['payment_proof_mime_type'],
+          data['mimeType'],
+          data['mime_type'],
+        );
+
+        const showImagePreview = isImageData(proofRaw, mimeTypeDisplay ?? undefined);
+        const proofUri = proofRaw
+          ? proofRaw.startsWith('http')
+            ? proofRaw
+            : `data:${mimeTypeDisplay ?? 'image/jpeg'};base64,${proofRaw}`
+          : null;
+        const proofDisplay = summarizeProof(proofRaw);
+
+        const uploadedAtRaw = pickString(
+          data['uploadedAt'],
+          data['uploaded_at'],
+          data['createdAt'],
+          data['created_at'],
+        );
+        const uploadedAtDisplay = uploadedAtRaw ? formatDateTime(uploadedAtRaw) : undefined;
+
+        const parentName = pickString(
+          data['parentName'],
+          data['parent_name'],
+          data['parentEmail'],
+          data['parent_email'],
+          payment?.['parentName'],
+        );
+
+        const caregiverName = pickString(
+          data['caregiverName'],
+          data['caregiver_name'],
+          payment?.['caregiverName'],
+        );
+
+        const details: {label: string; value: string}[] = [];
+
+        if (paymentId) {
+          details.push({label: 'Payment ID', value: paymentId});
+        }
+        if (bookingId) {
+          details.push({label: 'Booking ID', value: bookingId});
+        }
+        if (statusDisplay) {
+          details.push({label: 'Status', value: statusDisplay});
+        }
+        if (amountDisplay) {
+          details.push({label: 'Amount', value: amountDisplay});
+        }
+        if (parentName) {
+          details.push({label: 'Parent', value: parentName});
+        }
+        if (caregiverName) {
+          details.push({label: 'Caregiver', value: caregiverName});
+        }
+        if (mimeTypeDisplay) {
+          details.push({label: 'Proof Type', value: mimeTypeDisplay});
+        }
+        if (!showImagePreview && proofDisplay) {
+          details.push({label: 'Proof', value: proofDisplay});
+        }
+        if (uploadedAtDisplay && uploadedAtDisplay !== 'Unknown date') {
+          details.push({label: 'Uploaded', value: uploadedAtDisplay});
+        }
+
+        if (details.length > 0 || showImagePreview) {
+          if (__DEV__ && showImagePreview) {
+            console.log('[notifications] proof preview', {
+              id: item.id,
+              proofUri,
+              mimeTypeDisplay,
+            });
+          }
+
+          return (
+            <View style={styles.dataList}>
+              {details.map(detail => (
+                <View key={detail.label} style={styles.dataRow}>
+                  <Text variant="labelSmall" style={styles.dataLabel}>
+                    {detail.label}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.dataValue}>
+                    {detail.value}
+                  </Text>
+                </View>
+              ))}
+
+              {showImagePreview && proofUri ? (
+                <View style={styles.previewContainer}>
+                  <Text variant="labelSmall" style={styles.dataLabel}>
+                    Payment Proof
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.previewTouchable}
+                    onPress={() => setProofPreviewUri(proofUri)}>
+                    <Image
+                      source={{
+                        uri: proofUri,
+                      }}
+                      style={styles.previewImage}
+                      resizeMode="cover"
+                      onError={() => console.warn('[notifications] proof image failed', item.id)}
+                      onLoad={() => console.log('[notifications] proof image loaded', item.id)}
+                    />
+                    <Text variant="bodySmall" style={styles.previewHint}>
+                      Tap to view full proof
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+          );
+        }
+      }
+
+      if (isRecord(normalizedData)) {
+        const entries = Object.entries(normalizedData as Record<string, unknown>);
+        const genericDetails = entries
+          .filter(([, value]) => value !== undefined)
+          .map(([key, value]) => ({
+            label: formatLabel(key),
+            value: summarizeValue(value),
+          }))
+          .filter(detail => detail.value && detail.value.length > 0)
+          .slice(0, 8);
+
+        if (genericDetails.length > 0) {
+          return (
+            <View style={styles.dataList}>
+              {genericDetails.map(detail => (
+                <View key={detail.label} style={styles.dataRow}>
+                  <Text variant="labelSmall" style={styles.dataLabel}>
+                    {detail.label}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.dataValue}>
+                    {detail.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          );
+        }
+      }
+
+      if (Array.isArray(normalizedData)) {
+        return (
+          <Text variant="bodySmall" style={styles.jsonText}>
+            {`Array (${normalizedData.length} items)`}
+          </Text>
+        );
+      }
+
+      return (
+        <Text variant="bodySmall" style={styles.jsonText}>
+          {summarizeValue(normalizedData)}
+        </Text>
+      );
+    },
+    [formatDateTime],
+  );
+
   const confirmDeleteNotification = useCallback(
     (notification: NotificationItem) => {
       Alert.alert(
-        'Delete Notification',
-        'Are you sure you want to remove this notification? This cannot be undone.',
+        'Delete notification',
+        'Are you sure you want to delete this notification? This action cannot be undone.',
         [
           {text: 'Cancel', style: 'cancel'},
           {
@@ -311,6 +694,8 @@ export default function NotificationsManagementScreen() {
     const isToggleLoading = toggleLoadingId === item.id;
     const isDeleteLoading = deleteLoadingId === item.id;
 
+    const payloadContent = renderPayloadContent(item);
+
     return (
       <Card style={styles.card}>
         <Card.Content>
@@ -369,15 +754,13 @@ export default function NotificationsManagementScreen() {
             </Text>
           </View>
 
-          {item.data ? (
+          {payloadContent ? (
             <Card style={styles.dataCard}>
               <Card.Content>
                 <Text variant="titleSmall" style={styles.dataTitle}>
                   Payload
                 </Text>
-                <Text variant="bodySmall" style={styles.jsonText}>
-                  {JSON.stringify(item.data, null, 2)}
-                </Text>
+                {payloadContent}
               </Card.Content>
             </Card>
           ) : null}
@@ -406,7 +789,7 @@ export default function NotificationsManagementScreen() {
         </Card.Content>
       </Card>
     );
-  }, [confirmDeleteNotification, deleteLoadingId, formatDateTime, handleToggleRead, theme.colors.error, theme.colors.onPrimary, theme.colors.onSurfaceVariant, toggleLoadingId]);
+  }, [confirmDeleteNotification, deleteLoadingId, formatDateTime, handleToggleRead, renderPayloadContent, theme.colors.error, theme.colors.onPrimary, theme.colors.onSurfaceVariant, toggleLoadingId]);
 
   const renderItemSeparator = useCallback(() => <View style={styles.listSeparator} />, []);
 
@@ -539,6 +922,25 @@ export default function NotificationsManagementScreen() {
             </Button>
             <Button mode="contained" onPress={handleSendNotification} loading={composeSubmitting}>
               Send
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog visible={Boolean(proofPreviewUri)} onDismiss={closeProofPreview}>
+          <Dialog.Title>Payment Proof</Dialog.Title>
+          <Dialog.Content>
+            {proofPreviewUri ? (
+              <Image source={{uri: proofPreviewUri}} style={styles.previewModalImage} resizeMode="contain" />
+            ) : null}
+          </Dialog.Content>
+          <Dialog.Actions style={styles.previewActions}>
+            {isRemoteProof ? (
+              <Button onPress={handleOpenProofExternally} accessibilityLabel="Open proof in browser">
+                Open in Browser
+              </Button>
+            ) : null}
+            <Button onPress={closeProofPreview} mode="contained" style={styles.previewActionButton}>
+              Close
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -705,6 +1107,56 @@ const styles = StyleSheet.create({
   dataTitle: {
     marginBottom: 4,
     color: '#666',
+  },
+  dataList: {},
+  dataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dataLabel: {
+    color: '#757575',
+    fontWeight: '600',
+  },
+  dataValue: {
+    flexShrink: 1,
+    textAlign: 'right',
+    color: '#333',
+  },
+  previewContainer: {
+    marginTop: 8,
+    gap: 8,
+  },
+  previewTouchable: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#f1f3f4',
+  },
+  previewImage: {
+    width: '100%',
+    height: 160,
+    backgroundColor: '#d1d5db',
+  },
+  previewModalImage: {
+    width: '100%',
+    height: 320,
+    backgroundColor: '#000',
+    borderRadius: 12,
+  },
+  previewActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  previewActionButton: {
+    minWidth: 96,
+  },
+  previewHint: {
+    marginTop: 6,
+    color: '#3f51b5',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   jsonText: {
     fontFamily: 'monospace',

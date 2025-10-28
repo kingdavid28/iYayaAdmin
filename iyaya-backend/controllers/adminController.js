@@ -120,8 +120,8 @@ const handleSupabaseError = (error, context = "Supabase operation") => {
 const sanitizeEmail = (email) =>
   typeof email === "string" ? email.trim().toLowerCase() : undefined;
 
-const safeString = (value) =>
-  typeof value === "string" ? value.trim() : undefined;
+const safeString = (str) =>
+  typeof str === "string" ? str.trim() : undefined;
 
 exports.getSettings = async (_req, res) => {
   try {
@@ -188,11 +188,10 @@ const applyJobStatusChange = async ({
 
   const updatedJob = await JobService.updateStatus(jobId, targetStatus);
 
-  await auditService.logAction({
-    userId: adminId,
+  await AuditLogService.create({
+    admin_id: adminId,
     action: auditAction,
-    entity: "JOB",
-    entityId: jobId,
+    target_id: jobId,
     metadata: {
       from: job.status,
       to: targetStatus,
@@ -234,11 +233,10 @@ const applyBookingStatusChange = async ({
     targetStatus,
   );
 
-  await auditService.logAction({
-    userId: adminId,
+  await AuditLogService.create({
+    admin_id: adminId,
     action: auditAction,
-    entity: "BOOKING",
-    entityId: bookingId,
+    target_id: bookingId,
     metadata: {
       from: booking.status,
       to: targetStatus,
@@ -247,6 +245,33 @@ const applyBookingStatusChange = async ({
   });
 
   return { booking: normalizeBooking(updatedBooking) };
+};
+
+// Jobs management functions
+exports.listJobs = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status, search } = req.query;
+    const result = await JobService.getJobs({
+      page: Number(page),
+      limit: Number(limit),
+      status,
+      search,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.jobs.map(normalizeJob),
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        hasMore: (result.page * result.limit) < result.total,
+      },
+      stats: result.stats,
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "listJobs"));
+  }
 };
 
 exports.approveJob = async (req, res) => {
@@ -777,7 +802,6 @@ exports.verifyProviderDocuments = async (req, res) => {
     });
 
     res.status(200).json({
-      success: true,
       data: updatedProfile,
       message: `Documents ${verificationStatus} successfully`,
     });
@@ -786,89 +810,400 @@ exports.verifyProviderDocuments = async (req, res) => {
   }
 };
 
-// Delete User (Soft Delete)
-exports.deleteUser = async (req, res) => {
+// Jobs management functions
+exports.listJobs = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { page = 1, limit = 20, status, search } = req.query;
+    const result = await JobService.getJobs({
+      page: Number(page),
+      limit: Number(limit),
+      status,
+      search,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.jobs.map(normalizeJob),
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        hasMore: (result.page * result.limit) < result.total,
+      },
+      stats: result.stats,
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "listJobs"));
+  }
+};
+
+exports.createJob = async (req, res) => {
+  try {
+    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
     const adminId = req.user.id;
 
-    const user = await UserService.findById(userId);
-    if (!user) {
-      return res.status(404).json({
+    if (!title || !description || !location) {
+      return res.status(400).json({
         success: false,
-        error: "User not found",
+        error: "Title, description, and location are required"
       });
     }
 
-    if (user.role === "admin" && req.user.role !== "superadmin") {
-      return res.status(403).json({
-        success: false,
-        error: "Cannot delete admin accounts",
-      });
-    }
+    const jobData = {
+      title,
+      description,
+      location,
+      budget: budget || null,
+      hourly_rate: hourly_rate || null,
+      parent_id: parent_id || null,
+      caregiver_id: caregiver_id || null,
+      status: 'open',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
 
-    const deletedUser = await UserService.softDelete(userId, {
-      deletedBy: adminId,
-      reason: "Account deleted by administrator",
-    });
-
-    try {
-      await AuthAdminService.deleteUser(userId);
-    } catch (authError) {
-      console.error(
-        "Auth user delete failed, proceeding with soft delete",
-        authError,
-      );
-    }
-
-    await UserStatusHistoryService.logChange({
-      userId,
-      status: "inactive",
-      reason: "Account deleted by administrator",
-      changedBy: adminId,
-    });
+    const createdJob = await JobService.create(jobData);
 
     await AuditLogService.create({
       admin_id: adminId,
-      action: "DELETE_USER",
-      target_id: userId,
+      action: "CREATE_JOB",
+      target_id: createdJob.id,
       metadata: {
-        email: user.email,
-        role: user.role,
+        title,
+        location,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: normalizeJob(createdJob),
+      message: "Job created successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "createJob"));
+  }
+};
+
+exports.getJobById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const job = await JobService.findById(id);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: normalizeJob(job),
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "getJobById"));
+  }
+};
+
+exports.updateJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const updates = {
+      ...(title ? { title } : {}),
+      ...(description ? { description } : {}),
+      ...(location ? { location } : {}),
+      ...(typeof budget === 'number' ? { budget } : {}),
+      ...(typeof hourly_rate === 'number' ? { hourly_rate } : {}),
+      ...(parent_id ? { parent_id } : {}),
+      ...(caregiver_id ? { caregiver_id } : {}),
+      updated_at: new Date().toISOString(),
+    };
+
+    const updatedJob = await JobService.update(jobId, updates);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "UPDATE_JOB",
+      target_id: jobId,
+      metadata: {
+        changes: Object.keys(updates),
       },
     });
 
     res.status(200).json({
       success: true,
-      data: normalizeUser(deletedUser),
-      message: "User deleted successfully",
+      data: normalizeJob(updatedJob),
+      message: "Job updated successfully",
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "deleteUser"));
+    res.status(500).json(handleSupabaseError(error, "updateJob"));
   }
 };
 
-// Function verification (for development/testing)
-const functionChecks = {
-  dashboard: typeof exports.dashboard,
-  listUsers: typeof exports.listUsers,
-  getUserById: typeof exports.getUserById,
-  updateUserStatus: typeof exports.updateUserStatus,
-  verifyProviderDocuments: typeof exports.verifyProviderDocuments,
-  deleteUser: typeof exports.deleteUser,
-  listBookings: typeof exports.listBookings,
-  getBookingById: typeof exports.getBookingById,
-  updateBookingStatus: typeof exports.updateBookingStatus,
-  confirmBooking: typeof exports.confirmBooking,
-  startBooking: typeof exports.startBooking,
-  completeBooking: typeof exports.completeBooking,
-  cancelBooking: typeof exports.cancelBooking,
-  listJobs: typeof exports.listJobs,
-  getJobById: typeof exports.getJobById,
-  updateJobStatus: typeof exports.updateJobStatus,
-  listAuditLogs: typeof exports.listAuditLogs,
+exports.updateJobStatus = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { status } = req.body;
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const validStatuses = ["open", "closed", "cancelled"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status value. Must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    const updatedJob = await JobService.updateStatus(jobId, status);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "UPDATE_JOB_STATUS",
+      target_id: jobId,
+      metadata: {
+        status,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: normalizeJob(updatedJob),
+      message: "Job status updated successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "updateJobStatus"));
+  }
 };
 
+exports.approveJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const updatedJob = await JobService.approve(jobId);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "APPROVE_JOB",
+      target_id: jobId,
+      metadata: {
+        status: "approved",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: normalizeJob(updatedJob),
+      message: "Job approved successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "approveJob"));
+  }
+};
+
+exports.rejectJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const updatedJob = await JobService.reject(jobId, reason);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "REJECT_JOB",
+      target_id: jobId,
+      metadata: {
+        status: "rejected",
+        reason,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: normalizeJob(updatedJob),
+      message: "Job rejected successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "rejectJob"));
+  }
+};
+
+exports.cancelJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const updatedJob = await JobService.cancel(jobId, reason);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "CANCEL_JOB",
+      target_id: jobId,
+      metadata: {
+        status: "cancelled",
+        reason,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: normalizeJob(updatedJob),
+      message: "Job cancelled successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "cancelJob"));
+  }
+};
+
+exports.completeJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const updatedJob = await JobService.complete(jobId);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "COMPLETE_JOB",
+      target_id: jobId,
+      metadata: {
+        status: "completed",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: normalizeJob(updatedJob),
+      message: "Job completed successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "completeJob"));
+  }
+};
+
+exports.reopenJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    const updatedJob = await JobService.reopen(jobId);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "REOPEN_JOB",
+      target_id: jobId,
+      metadata: {
+        status: "open",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: normalizeJob(updatedJob),
+      message: "Job reopened successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "reopenJob"));
+  }
+};
+
+exports.deleteJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { reason } = req.query || {};
+    const adminId = req.user.id;
+
+    const job = await JobService.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    await JobService.delete(jobId);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "DELETE_JOB",
+      target_id: jobId,
+      metadata: {
+        title: job.title,
+        reason,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Job deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "deleteJob"));
+  }
+};
+
+// Bookings management functions
 exports.listBookings = async (req, res) => {
   try {
     const { page = 1, limit = 20, status, search } = req.query;
@@ -912,6 +1247,77 @@ exports.getBookingById = async (req, res) => {
   }
 };
 
+// Delete User
+exports.deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body || {};
+    const adminId = req.user.id;
+
+    const user = await UserService.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    if (user.role === "admin" && req.user.role !== "superadmin") {
+      return res.status(403).json({
+        success: false,
+        error: "Cannot delete admin accounts",
+      });
+    }
+
+    await UserService.delete(userId, { reason, deletedBy: adminId });
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "DELETE_USER",
+      target_id: userId,
+      metadata: {
+        email: user.email,
+        role: user.role,
+        reason,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "deleteUser"));
+  }
+};
+
+// Audit logs
+exports.listAuditLogs = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, action, search } = req.query;
+    const result = await AuditLogService.getLogs({
+      page: Number(page),
+      limit: Number(limit),
+      action,
+      search,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.logs,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        hasMore: (result.page * result.limit) < result.total,
+      },
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "listAuditLogs"));
+  }
+};
+
+// Booking status change functions
 exports.updateBookingStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -1083,224 +1489,66 @@ exports.cancelBooking = async (req, res) => {
   }
 };
 
-exports.createJob = async (req, res) => {
-  try {
-    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
-    const adminId = req.user.id;
-
-    if (!title || !description || !location) {
-      return res.status(400).json({
-        success: false,
-        error: "Title, description, and location are required"
-      });
-    }
-
-    const jobData = {
-      title,
-      description,
-      location,
-      budget: budget || null,
-      hourly_rate: hourly_rate || null,
-      parent_id: parent_id || null,
-      caregiver_id: caregiver_id || null,
-      status: 'open',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const createdJob = await JobService.create(jobData);
-
-    await AuditLogService.create({
-      admin_id: adminId,
-      action: "CREATE_JOB",
-      target_id: createdJob.id,
-      metadata: {
-        title,
-        location,
-      },
-    });
-
-    res.status(201).json({
-      success: true,
-      data: normalizeJob(createdJob),
-      message: "Job created successfully",
-    });
-  } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "createJob"));
-  }
+// Function verification (for development/testing)
+const functionChecks = {
+  dashboard: typeof exports.dashboard,
+  listUsers: typeof exports.listUsers,
+  getUserById: typeof exports.getUserById,
+  updateUserStatus: typeof exports.updateUserStatus,
+  verifyProviderDocuments: typeof exports.verifyProviderDocuments,
+  deleteUser: typeof exports.deleteUser,
+  listBookings: typeof exports.listBookings,
+  getBookingById: typeof exports.getBookingById,
+  updateBookingStatus: typeof exports.updateBookingStatus,
+  confirmBooking: typeof exports.confirmBooking,
+  startBooking: typeof exports.startBooking,
+  completeBooking: typeof exports.completeBooking,
+  cancelBooking: typeof exports.cancelBooking,
+  listJobs: typeof exports.listJobs,
+  getJobById: typeof exports.getJobById,
+  updateJobStatus: typeof exports.updateJobStatus,
+  listAuditLogs: typeof exports.listAuditLogs,
 };
 
-exports.updateJob = async (req, res) => {
-  try {
-    const { jobId } = req.params;
-    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
-    const adminId = req.user.id;
+module.exports = {
+  // Dashboard
+  dashboard: exports.dashboard,
 
-    const job = await JobService.findById(jobId);
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        error: "Job not found",
-      });
-    }
+  // Settings
+  getSettings: exports.getSettings,
+  updateSettings: exports.updateSettings,
 
-    const updates = {
-      ...(title ? { title } : {}),
-      ...(description ? { description } : {}),
-      ...(location ? { location } : {}),
-      ...(typeof budget === 'number' ? { budget } : {}),
-      ...(typeof hourly_rate === 'number' ? { hourly_rate } : {}),
-      ...(parent_id ? { parent_id } : {}),
-      ...(caregiver_id ? { caregiver_id } : {}),
-      updated_at: new Date().toISOString(),
-    };
+  // Users
+  listUsers: exports.listUsers,
+  createUser: exports.createUser,
+  getUserById: exports.getUserById,
+  updateUser: exports.updateUser,
+  updateUserStatus: exports.updateUserStatus,
+  bulkUpdateUserStatus: exports.bulkUpdateUserStatus,
+  deleteUser: exports.deleteUser,
 
-    const updatedJob = await JobService.update(jobId, updates);
+  // Bookings
+  listBookings: exports.listBookings,
+  getBookingById: exports.getBookingById,
+  updateBookingStatus: exports.updateBookingStatus,
+  confirmBooking: exports.confirmBooking,
+  startBooking: exports.startBooking,
+  completeBooking: exports.completeBooking,
+  cancelBooking: exports.cancelBooking,
 
-    await AuditLogService.create({
-      admin_id: adminId,
-      action: "UPDATE_JOB",
-      target_id: jobId,
-      metadata: {
-        changes: Object.keys(updates),
-      },
-    });
+  // Jobs
+  listJobs: exports.listJobs,
+  createJob: exports.createJob,
+  getJobById: exports.getJobById,
+  updateJob: exports.updateJob,
+  updateJobStatus: exports.updateJobStatus,
+  approveJob: exports.approveJob,
+  rejectJob: exports.rejectJob,
+  cancelJob: exports.cancelJob,
+  completeJob: exports.completeJob,
+  reopenJob: exports.reopenJob,
+  deleteJob: exports.deleteJob,
 
-    res.status(200).json({
-      success: true,
-      data: normalizeJob(updatedJob),
-      message: "Job updated successfully",
-    });
-  } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "updateJob"));
-  }
-};
-
-exports.deleteJob = async (req, res) => {
-  try {
-    const { jobId } = req.params;
-    const { reason } = req.query || {};
-    const adminId = req.user.id;
-
-    const job = await JobService.findById(jobId);
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        error: "Job not found",
-      });
-    }
-
-    await JobService.delete(jobId);
-
-    await AuditLogService.create({
-      admin_id: adminId,
-      action: "DELETE_JOB",
-      target_id: jobId,
-      metadata: {
-        title: job.title,
-        reason,
-      },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Job deleted successfully",
-    });
-  } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "deleteJob"));
-  }
-};
-
-exports.getJobById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const job = await JobService.findById(id);
-
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        error: "Job not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: normalizeJob(job),
-    });
-  } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "getJobById"));
-  }
-};
-
-exports.updateJobStatus = async (req, res) => {
-  try {
-    const { jobId } = req.params;
-    const { status } = req.body;
-    const adminId = req.user.id;
-
-    const validStatuses = [
-      "open",
-      "pending",
-      "confirmed",
-      "completed",
-      "cancelled",
-    ];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid status value. Must be one of: ${validStatuses.join(", ")}`,
-      });
-    }
-
-    const job = await JobService.findById(jobId);
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        error: "Job not found",
-      });
-    }
-
-    const updatedJob = await JobService.updateStatus(jobId, status);
-
-    await AuditLogService.create({
-      admin_id: adminId,
-      action: "UPDATE_JOB_STATUS",
-      target_id: jobId,
-      metadata: {
-        from: job.status,
-        to: status,
-      },
-    });
-
-    res.status(200).json({
-      success: true,
-      data: normalizeJob(updatedJob),
-      message: `Job status updated to ${status}`,
-    });
-  } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "updateJobStatus"));
-  }
-};
-
-exports.listAuditLogs = async (req, res) => {
-  try {
-    const { page = 1, limit = 20, action, targetId, adminId } = req.query;
-    const { logs, total } = await AuditLogService.getLogs({
-      page: Number(page),
-      limit: Number(limit),
-      action,
-      targetId,
-      adminId,
-    });
-
-    res.status(200).json({
-      success: true,
-      count: total,
-      totalPages: Math.ceil((total || 0) / Number(limit) || 1),
-      currentPage: Number(page),
-      data: logs || [],
-    });
-  } catch (error) {
-    res.status(500).json(handleSupabaseError(error, "listAuditLogs"));
-  }
+  // Audit logs
+  listAuditLogs: exports.listAuditLogs,
 };

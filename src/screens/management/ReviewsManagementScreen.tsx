@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {View, StyleSheet, FlatList, ScrollView, RefreshControl, Alert, Animated, Vibration} from 'react-native';
+import {View, StyleSheet, FlatList, ScrollView, RefreshControl, Alert, Animated, Vibration, Platform} from 'react-native';
 import {
   ActivityIndicator,
   Button,
@@ -54,8 +54,8 @@ export default function ReviewsManagementScreen() {
       const matchesSearch =
         !searchQuery.trim() ||
         review.comment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        review.reviewerInfo?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        review.revieweeInfo?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+        (review.reviewerInfo?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+        (review.revieweeInfo?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
       return matchesStatus && matchesRating && matchesSearch;
     });
 
@@ -156,10 +156,10 @@ export default function ReviewsManagementScreen() {
                   <Icon name="person" type="material" color={theme.colors.primary} size={28} />
                   <View style={styles.headerText}>
                     <Text variant="titleMedium" style={[styles.reviewerName, {color: theme.colors.onSurface}]}>
-                      {review.reviewerInfo?.name ?? 'Anonymous'}
+                      {review.reviewerInfo?.name ?? 'Reviewer not specified'}
                     </Text>
                     <Text variant="bodySmall" style={[styles.emailText, {color: theme.colors.onSurfaceVariant}]}>
-                      {review.reviewerInfo?.email ?? 'No email provided'}
+                      {review.reviewerInfo?.email ?? 'Email not available'}
                     </Text>
                   </View>
                 </View>
@@ -221,7 +221,7 @@ export default function ReviewsManagementScreen() {
                     styles.actionButton,
                     styles.hideButton,
                     {
-                      backgroundColor: status === 'hidden' ? theme.colors.primary : 'transparent',
+                      backgroundColor: status === 'hidden' ? theme.colors.primary : 'white',
                       elevation: status === 'hidden' ? 2 : 0,
                       borderWidth: status === 'hidden' ? 0 : 1,
                     }
@@ -230,7 +230,7 @@ export default function ReviewsManagementScreen() {
                     styles.actionButtonText,
                     { color: status === 'hidden' ? theme.colors.onPrimary : theme.colors.primary }
                   ]}
-                  contentStyle={{ paddingVertical: 10, paddingHorizontal: 12 }}
+                  contentStyle={styles.buttonContent}
                   compact={true}
                   loading={updatingReview === review.id}
                   disabled={updatingReview !== null}>
@@ -244,15 +244,14 @@ export default function ReviewsManagementScreen() {
                     styles.actionButton,
                     styles.deleteButton,
                     {
-                      backgroundColor: theme.colors.error,
-                      elevation: 3,
+                      backgroundColor: '#B00020',
                     }
                   ]}
                   labelStyle={[
                     styles.actionButtonText,
                     { color: theme.colors.onError }
                   ]}
-                  contentStyle={{ paddingVertical: 10, paddingHorizontal: 12 }}
+                  contentStyle={styles.buttonContent}
                   compact={true}>
                   Delete
                 </Button>
@@ -520,24 +519,33 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    minHeight: 44, // Ensure minimum touch target for accessibility
+    minHeight: Platform.select({ web: 32, default: 36 }),
+    justifyContent: 'center',
+    paddingVertical: Platform.select({ web: 0, default: 4 }),
   },
   hideButton: {
     borderWidth: 1,
-    borderColor: '#6200EE', // Primary color
+    borderColor: '#6200EE',
+    backgroundColor: 'white',
     shadowColor: 'transparent',
   },
   deleteButton: {
-    elevation: 3,
+    backgroundColor: '#B00020',
+    elevation: Platform.select({ web: 1, default: 2 }),
     shadowColor: '#B00020',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: Platform.select({ web: 0.5, default: 1 }) },
+    shadowOpacity: Platform.select({ web: 0.1, default: 0.2 }),
+    shadowRadius: Platform.select({ web: 1, default: 2 }),
   },
   actionButtonText: {
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  buttonContent: {
+    height: Platform.select({ web: 32, default: 36 }),
+    paddingVertical: 0,
+    paddingHorizontal: 8,
   },
   fab: {
     position: 'absolute',

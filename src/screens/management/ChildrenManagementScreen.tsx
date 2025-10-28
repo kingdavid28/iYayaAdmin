@@ -1,6 +1,8 @@
+// src/screens/management/ChildrenManagementScreen.tsx
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Alert, FlatList, RefreshControl, StyleSheet, View} from 'react-native';
 import {
+  ActivityIndicator,
   Avatar,
   Button,
   Card,
@@ -13,13 +15,15 @@ import {
   TextInput,
   useTheme,
 } from 'react-native-paper';
+import {Icon} from 'react-native-elements';
+import type {MD3Theme} from 'react-native-paper';
 import {ChildProfile} from '../../types';
 import {
-  fetchChildren as fetchChildrenService,
   updateChildNotes,
   deleteChildProfile,
 } from '../../services/childrenService';
-import {supabase} from '../../config/supabase';
+import {useOrganization} from '../../contexts/OrganizationContext';
+import {useChildren} from '../../hooks/useChildren';
 
 type RiskFilter = 'all' | 'allergies' | 'notes' | 'specialNeeds';
 
@@ -79,8 +83,9 @@ const formatEmergencyContact = (contact?: Record<string, unknown> | null) => {
 
 export default function ChildrenManagementScreen() {
   const theme = useTheme();
-  const [children, setChildren] = useState<ChildProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const {organizationId} = useOrganization();
+  const {children, loading, error, refresh} = useChildren({organizationId});
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRisk, setSelectedRisk] = useState<RiskFilter>('all');
@@ -117,57 +122,28 @@ export default function ChildrenManagementScreen() {
     );
   }, [children]);
 
-  const loadChildren = useCallback(
-    async (options?: {silent?: boolean}) => {
-      if (!options?.silent) {
-        setLoading(true);
-      }
-      try {
-        const fetchedChildren = await fetchChildrenService({
-          search: debouncedQuery.trim() ? debouncedQuery.trim() : undefined,
-        });
-        console.log('[children] fetched', fetchedChildren.length);
-        setChildren(fetchedChildren);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to load child profiles';
-        Alert.alert('Error', message);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [debouncedQuery],
-  );
-
-  useEffect(() => {
-    loadChildren();
-  }, [loadChildren]);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(result => {
-      console.log('[auth] session', result.data.session?.user?.email);
-    });
-  }, []);
-
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadChildren({silent: true});
-  }, [loadChildren]);
-
   const filteredChildren = useMemo(() => {
     return children.filter(child => {
-      switch (selectedRisk) {
-        case 'allergies':
-          return Boolean(child.allergies && child.allergies.trim());
-        case 'notes':
-          return Boolean(child.notes && child.notes.trim());
-        case 'specialNeeds':
-          return Boolean(child.specialNeeds && child.specialNeeds.trim());
-        default:
-          return true;
-      }
+      // Filter by risk type
+      const matchesFilter = selectedRisk === 'all' || 
+        (selectedRisk === 'allergies' && child.allergies) ||
+        (selectedRisk === 'notes' && child.notes) ||
+        (selectedRisk === 'specialNeeds' && child.specialNeeds);
+      
+      // Filter by search query
+      const matchesSearch = !debouncedQuery || 
+        child.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        (child.parentInfo?.name && child.parentInfo.name.toLowerCase().includes(debouncedQuery.toLowerCase()));
+      
+      return matchesFilter && matchesSearch;
     });
-  }, [children, selectedRisk]);
+  }, [children, selectedRisk, debouncedQuery]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
 
   const handleNotesChange = useCallback((childId: string, text: string) => {
     setNoteDrafts(prev => ({...prev, [childId]: text}));
@@ -193,7 +169,7 @@ export default function ChildrenManagementScreen() {
           delete next[child.id];
           return next;
         });
-        await loadChildren({silent: true});
+        await refresh();
         Alert.alert('Success', 'Child profile notes updated.');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to update child profile';
@@ -202,7 +178,7 @@ export default function ChildrenManagementScreen() {
         setSaveLoadingId(null);
       }
     },
-    [loadChildren, noteDrafts],
+    [refresh, noteDrafts],
   );
 
   const handleDelete = useCallback(
@@ -224,7 +200,7 @@ export default function ChildrenManagementScreen() {
                   delete next[child.id];
                   return next;
                 });
-                setChildren(prev => prev.filter(existing => existing.id !== child.id));
+                await refresh();
                 Alert.alert('Deleted', 'Child profile removed.');
               } catch (error) {
                 const message = error instanceof Error ? error.message : 'Failed to delete child profile';
@@ -237,7 +213,7 @@ export default function ChildrenManagementScreen() {
         ],
       );
     },
-    [],
+    [refresh],
   );
 
   const renderStatsCard = useCallback(
@@ -313,7 +289,7 @@ export default function ChildrenManagementScreen() {
                 <View style={styles.headerText}>
                   <Text variant="titleMedium">{item.name}</Text>
                   <Text variant="bodySmall" style={styles.subtleText}>
-                    {item.parentInfo?.name ?? 'Parent name unavailable'}
+                    {item.parentInfo?.name || `Parent ID: ${item.parentId}`}
                   </Text>
                 </View>
               </View>
@@ -396,45 +372,43 @@ export default function ChildrenManagementScreen() {
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
-          {Array.from({length: 4}).map((_, index) => (
-            <Surface key={`skeleton-${index}`} style={styles.card} elevation={2}>
-              <View style={styles.cardInner}>
-                <View style={[styles.headerRow, styles.skeletonHeader]}>
-                  <View style={styles.headerInfo}>
-                    <View style={styles.skeletonAvatar} />
-                    <View style={styles.headerText}>
-                      <View style={styles.skeletonLineLarge} />
-                      <View style={styles.skeletonLineSmall} />
-                    </View>
-                  </View>
-                  <View style={styles.skeletonChip} />
-                </View>
-                <View style={styles.skeletonBlock} />
-                <View style={styles.skeletonBlock} />
-                <View style={styles.skeletonButtonRow}>
-                  <View style={styles.skeletonButton} />
-                  <View style={styles.skeletonButton} />
-                </View>
-              </View>
-            </Surface>
-          ))}
+          <ActivityIndicator size="large" />
+          <Text style={styles.loadingText}>Loading children...</Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Icon name="error-outline" size={48} color={theme.colors.error} />
+          <Text style={styles.errorText}>{error}</Text>
+          <Button
+            mode="contained"
+            onPress={refresh}
+            style={styles.retryButton}
+          >
+            Retry
+          </Button>
         </View>
       );
     }
 
     return (
-      <Card style={styles.emptyCard}>
-        <Card.Content>
-          <Text variant="titleMedium" style={styles.emptyTitle}>
-            No child profiles found
-          </Text>
-          <Text variant="bodyMedium" style={styles.emptyText}>
-            Try refreshing or adjusting your filters. Confirm parents have added children in the mobile app.
-          </Text>
-        </Card.Content>
-      </Card>
+      <View style={styles.emptyContainer}>
+        <Icon name="child-care" size={48} color={theme.colors.outline} />
+        <Text style={styles.emptyText}>No children found</Text>
+        {debouncedQuery ? (
+          <Button
+            mode="text"
+            onPress={() => setSearchQuery('')}
+          >
+            Clear search
+          </Button>
+        ) : null}
+      </View>
     );
-  }, [loading]);
+  }, [debouncedQuery, error, loading, refresh, styles, theme.colors.error, theme.colors.outline]);
 
   return (
     <View style={styles.container}>
@@ -450,197 +424,172 @@ export default function ChildrenManagementScreen() {
         keyboardShouldPersistTaps="handled"
       />
 
-      <FAB icon="refresh" style={styles.fab} onPress={() => loadChildren()} disabled={loading} />
+      <FAB icon="refresh" style={styles.fab} onPress={handleRefresh} disabled={loading} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 96,
-  },
-  listSeparator: {
-    height: 12,
-  },
-  headerContainer: {
-    marginBottom: 16,
-  },
-  title: {
-    textAlign: 'center',
-    color: '#3f51b5',
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  subtitle: {
-    textAlign: 'center',
-    color: '#616161',
-    marginBottom: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flexBasis: '48%',
-    flexGrow: 1,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    elevation: 2,
-  },
-  statContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  statIcon: {
-    backgroundColor: '#3f51b5',
-  },
-  statIconWarning: {
-    backgroundColor: '#fb8c00',
-  },
-  statIconCritical: {
-    backgroundColor: '#e53935',
-  },
-  statIconInfo: {
-    backgroundColor: '#7b1fa2',
-  },
-  statIconSuccess: {
-    backgroundColor: '#43a047',
-  },
-  statTextGroup: {
-    flexShrink: 1,
-  },
-  statValue: {
-    fontWeight: '700',
-  },
-  statLabel: {
-    color: '#616161',
-  },
-  searchbar: {
-    marginBottom: 12,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  filterChip: {
-    backgroundColor: '#e8eaf6',
-  },
-  card: {
-    elevation: 2,
-    backgroundColor: '#ffffff',
-  },
-  cardInner: {
-    padding: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  headerText: {
-    flexShrink: 1,
-  },
-  avatar: {
-    backgroundColor: '#3f51b5',
-  },
-  subtleText: {
-    color: '#616161',
-  },
-  dateChip: {
-    backgroundColor: '#e3f2fd',
-  },
-  notesInput: {
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: '#3f51b5',
-  },
-  loadingContainer: {
-    gap: 12,
-  },
-  emptyCard: {
-    backgroundColor: '#fff',
-    elevation: 1,
-  },
-  emptyTitle: {
-    textAlign: 'center',
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#616161',
-  },
-  skeletonHeader: {
-    alignItems: 'center',
-  },
-  skeletonAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#e0e0e0',
-  },
-  skeletonLineLarge: {
-    height: 16,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 8,
-    marginBottom: 8,
-    width: '70%',
-  },
-  skeletonLineSmall: {
-    height: 12,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 6,
-    width: '45%',
-  },
-  skeletonChip: {
-    width: 72,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#e0e0e0',
-  },
-  skeletonBlock: {
-    height: 18,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  skeletonButtonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  skeletonButton: {
-    flex: 1,
-    height: 40,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 8,
-  },
-});
+const createStyles = (theme: MD3Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: '#f5f5f5',
+    },
+    listContent: {
+      padding: 16,
+      paddingBottom: 96,
+    },
+    listSeparator: {
+      height: 12,
+    },
+    headerContainer: {
+      marginBottom: 16,
+    },
+    title: {
+      textAlign: 'center',
+      color: '#3f51b5',
+      fontWeight: 'bold',
+      marginBottom: 8,
+    },
+    subtitle: {
+      textAlign: 'center',
+      color: '#616161',
+      marginBottom: 16,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginBottom: 16,
+    },
+    statCard: {
+      flexBasis: '48%',
+      flexGrow: 1,
+      borderRadius: 16,
+      backgroundColor: '#fff',
+      elevation: 2,
+    },
+    statContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    statIcon: {
+      backgroundColor: '#3f51b5',
+    },
+    statIconWarning: {
+      backgroundColor: '#fb8c00',
+    },
+    statIconCritical: {
+      backgroundColor: '#e53935',
+    },
+    statIconInfo: {
+      backgroundColor: '#7b1fa2',
+    },
+    statIconSuccess: {
+      backgroundColor: '#43a047',
+    },
+    statTextGroup: {
+      flexShrink: 1,
+    },
+    statValue: {
+      fontWeight: '700',
+    },
+    statLabel: {
+      color: '#616161',
+    },
+    searchbar: {
+      marginBottom: 12,
+    },
+    chipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    filterChip: {
+      backgroundColor: '#e8eaf6',
+    },
+    card: {
+      elevation: 2,
+      backgroundColor: '#ffffff',
+    },
+    cardInner: {
+      padding: 16,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    headerInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      gap: 12,
+    },
+    headerText: {
+      flexShrink: 1,
+    },
+    avatar: {
+      backgroundColor: '#3f51b5',
+    },
+    subtleText: {
+      color: '#616161',
+    },
+    dateChip: {
+      backgroundColor: '#e3f2fd',
+    },
+    notesInput: {
+      marginTop: 12,
+      marginBottom: 12,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    actionButton: {
+      flex: 1,
+    },
+    fab: {
+      position: 'absolute',
+      right: 16,
+      bottom: 16,
+      backgroundColor: '#3f51b5',
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 32,
+    },
+    loadingText: {
+      marginTop: 16,
+      color: theme.colors.onSurfaceVariant,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 32,
+    },
+    errorText: {
+      marginVertical: 16,
+      textAlign: 'center',
+      color: theme.colors.error,
+    },
+    retryButton: {
+      marginTop: 16,
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 32,
+    },
+    emptyText: {
+      marginTop: 16,
+      textAlign: 'center',
+      color: theme.colors.onSurfaceVariant,
+    },
+  });

@@ -1,8 +1,13 @@
-import React, {useState, useEffect} from 'react';
+// src/screens/management/ManagementHubScreen.tsx
+import React, {useCallback, useState} from 'react';
 import {View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Vibration} from 'react-native';
-import {Card, Text, useTheme, Surface} from 'react-native-paper';
+import {Card, Text, useTheme, Surface, ActivityIndicator} from 'react-native-paper';
 import {Icon} from 'react-native-elements';
-import {useNavigation} from '@react-navigation/native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {useChildren} from '../../hooks/useChildren';
+import {useOrganization} from '../../contexts/OrganizationContext';
+import {fetchReviews} from '../../services/reviewsService';
+import {fetchNotificationStats} from '../../services/notificationsService';
 
 interface ManagementItem {
   title: string;
@@ -10,6 +15,7 @@ interface ManagementItem {
   icon: string;
   color: string;
   route: keyof ManagementRoutes;
+  count?: number;
 }
 
 export type ManagementRoutes = {
@@ -20,64 +26,111 @@ export type ManagementRoutes = {
   PaymentsManagement: undefined;
 };
 
-const MANAGEMENT_ITEMS: ManagementItem[] = [
-  {
-    title: 'Reviews Management',
-    description: 'Moderate caregiver reviews and handle disputes.',
-    icon: 'rate-review',
-    color: '#ff9800',
-    route: 'ReviewsManagement',
-  },
-  {
-    title: 'Children Profiles',
-    description: 'Review and manage child safety information.',
-    icon: 'child-care',
-    color: '#4caf50',
-    route: 'ChildrenManagement',
-  },
-  {
-    title: 'Notifications Center',
-    description: 'Send and monitor system notifications.',
-    icon: 'notifications-active',
-    color: '#3f51b5',
-    route: 'NotificationsManagement',
-  },
-  {
-    title: 'Analytics & Insights',
-    description: 'Track platform performance metrics.',
-    icon: 'insights',
-    color: '#9c27b0',
-    route: 'AnalyticsManagement',
-  },
-  {
-    title: 'Payments Oversight',
-    description: 'Resolve payment issues and refunds.',
-    icon: 'payment',
-    color: '#f44336',
-    route: 'PaymentsManagement',
-  },
-];
-
 export default function ManagementHubScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const {width} = Dimensions.get('window');
   const isTablet = width >= 768;
-  const [loading, setLoading] = useState(true);
+  const {organizationId} = useOrganization();
 
-  useEffect(() => {
-    // Simulate loading for demonstration; replace with actual loading logic
-    const timer = setTimeout(() => setLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+  const {children, loading: childrenLoading} = useChildren({organizationId});
+  const [reviewCount, setReviewCount] = useState<number>(0);
+  const [reviewsLoading, setReviewsLoading] = useState<boolean>(true);
+  const [notificationsLoading, setNotificationsLoading] = useState<boolean>(true);
+  const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      const loadData = async () => {
+        setReviewsLoading(true);
+        setNotificationsLoading(true);
+
+        const [reviewsResult, statsResult] = await Promise.allSettled([
+          fetchReviews(),
+          fetchNotificationStats(),
+        ]);
+
+        if (!active) {
+          return;
+        }
+
+        if (reviewsResult.status === 'fulfilled') {
+          setReviewCount(reviewsResult.value.length);
+        } else {
+          console.error('[ManagementHub] Failed to load reviews count', reviewsResult.reason);
+          setReviewCount(0);
+        }
+
+        if (statsResult.status === 'fulfilled') {
+          setUnreadNotifications(statsResult.value.unread ?? 0);
+        } else {
+          console.error('[ManagementHub] Failed to load notification stats', statsResult.reason);
+          setUnreadNotifications(0);
+        }
+
+        setReviewsLoading(false);
+        setNotificationsLoading(false);
+      };
+
+      loadData();
+
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  const loading = childrenLoading || reviewsLoading || notificationsLoading;
+
+  const MANAGEMENT_ITEMS: ManagementItem[] = [
+    {
+      title: 'Reviews Management',
+      description: 'Moderate caregiver reviews',
+      icon: 'rate-review',
+      color: '#ff9800',
+      route: 'ReviewsManagement',
+      count: reviewCount,
+    },
+    {
+      title: 'Children Profiles',
+      description: 'Manage child information',
+      icon: 'child-care',
+      color: '#4caf50',
+      route: 'ChildrenManagement',
+      count: children.length,
+    },
+    {
+      title: 'Notifications',
+      description: 'System notifications',
+      icon: 'notifications',
+      color: '#3f51b5',
+      route: 'NotificationsManagement',
+      count: unreadNotifications,
+    },
+    {
+      title: 'Analytics',
+      description: 'Platform metrics',
+      icon: 'insights',
+      color: '#9c27b0',
+      route: 'AnalyticsManagement'
+    },
+    {
+      title: 'Payments',
+      description: 'Transaction oversight',
+      icon: 'payment',
+      color: '#f44336',
+      route: 'PaymentsManagement'
+    },
+  ];
 
   const handleNavigate = (route: ManagementItem['route']) => {
     Vibration.vibrate(50);
-    // @ts-expect-error - navigation types handled by stack configuration
-    navigation.navigate(route);
+    navigation.navigate(route as never);
   };
 
-  const renderItem = (item: ManagementItem, index: number) => {
+  const renderItem = (item: ManagementItem) => {
     const cardWidth = isTablet ? '48%' : '100%';
 
     return (
@@ -86,28 +139,29 @@ export default function ManagementHubScreen() {
         onPress={() => handleNavigate(item.route)}
         activeOpacity={0.9}
         style={[styles.gridItem, {width: cardWidth}]}
-        accessibilityLabel={`Navigate to ${item.title}`}
-        accessibilityHint={item.description}
-        accessibilityRole="button">
-        <Surface style={[styles.card, {backgroundColor: theme.colors.surface}]} elevation={2}>
-          <View style={styles.cardContentWrapper}>
+      >
+        <Surface style={styles.card} elevation={2}>
+          <View style={[styles.cardInner, {backgroundColor: item.color}]}> 
             <Card.Content style={styles.cardContent}>
-              <View style={[styles.iconContainer, {backgroundColor: item.color}]}>
+              <View style={styles.iconContainer}>
                 <Icon
-                  name={item.icon === 'child-care' ? 'people-outline' : item.icon}
+                  name={item.icon}
                   type="material"
                   size={32}
-                  accessibilityLabel={`${item.title} icon`}
+                  color="white"
                 />
               </View>
-              <Text variant="titleMedium" style={[styles.cardTitle, {color: theme.colors.onSurface}]}>
+              <Text variant="titleMedium" style={styles.cardTitle}>
                 {item.title}
               </Text>
-              <Text
-                variant="bodySmall"
-                style={[styles.cardDescription, {color: theme.colors.onSurfaceVariant}]}>
+              <Text variant="bodySmall" style={styles.cardDescription}>
                 {item.description}
               </Text>
+              {item.count !== undefined && (
+                <Text variant="labelLarge" style={styles.countBadge}>
+                  {item.count}
+                </Text>
+              )}
             </Card.Content>
           </View>
         </Surface>
@@ -117,36 +171,25 @@ export default function ManagementHubScreen() {
 
   if (loading) {
     return (
-      <ScrollView style={[styles.container, {backgroundColor: theme.colors.background}]}>
-        <View style={styles.content}>
-          <View style={styles.skeletonTitle} />
-          <View style={styles.skeletonSubtitle} />
-          <View style={[styles.grid, isTablet && styles.gridTablet]}>
-            {Array.from({length: 5}).map((_, index) => (
-              <View key={index} style={[styles.skeletonCard, {width: isTablet ? '48%' : '100%'}]}>
-                <View style={styles.skeletonIcon} />
-                <View style={styles.skeletonText} />
-                <View style={styles.skeletonTextSmall} />
-              </View>
-            ))}
-          </View>
-        </View>
-      </ScrollView>
+      <View style={[styles.container, {backgroundColor: theme.colors.background}]}>
+        <ActivityIndicator size="large" style={styles.loader} />
+      </View>
     );
   }
 
   return (
     <ScrollView style={[styles.container, {backgroundColor: theme.colors.background}]}>
-      <View style={styles.content}>
+      <View style={styles.header}>
         <Text variant="headlineMedium" style={[styles.title, {color: theme.colors.primary}]}>
-          Management Center
+          Management Hub
         </Text>
         <Text variant="bodyLarge" style={[styles.subtitle, {color: theme.colors.onSurfaceVariant}]}>
-          Access critical administrative tools for the Iyaya platform.
+          Administrative dashboard
         </Text>
-        <View style={[styles.grid, isTablet && styles.gridTablet]}>
-          {MANAGEMENT_ITEMS.map(renderItem)}
-        </View>
+      </View>
+      
+      <View style={[styles.grid, isTablet && styles.gridTablet]}>
+        {MANAGEMENT_ITEMS.map(renderItem)}
       </View>
     </ScrollView>
   );
@@ -156,104 +199,75 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
+  header: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 8,
   },
   title: {
-    marginBottom: 8,
-    textAlign: 'center',
     fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
   },
   subtitle: {
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    padding: 8,
+    gap: 12,
   },
   gridTablet: {
-    justifyContent: 'flex-start',
-    gap: 16,
+    justifyContent: 'center',
   },
   gridItem: {
-    marginBottom: 16,
+    minWidth: 160,
   },
   card: {
     borderRadius: 12,
-    minHeight: 160,
+    minHeight: 180,
+    justifyContent: 'center',
   },
-  cardContentWrapper: {
+  cardInner: {
+    flex: 1,
     borderRadius: 12,
+    overflow: 'hidden',
   },
   cardContent: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
     padding: 16,
   },
   iconContainer: {
     width: 64,
     height: 64,
     borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    marginBottom: 12,
   },
   cardTitle: {
+    color: 'white',
     fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   cardDescription: {
+    color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
-    lineHeight: 16,
   },
-  skeletonTitle: {
-    width: 200,
-    height: 28,
-    backgroundColor: '#e0e0e0',
-    marginBottom: 8,
-    alignSelf: 'center',
-  },
-  skeletonSubtitle: {
-    width: 300,
-    height: 18,
-    backgroundColor: '#e0e0e0',
-    marginBottom: 24,
-    alignSelf: 'center',
-  },
-  skeletonCard: {
-    marginBottom: 16,
-    padding: 16,
-    backgroundColor: '#e0e0e0',
+  countBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    color: 'white',
     borderRadius: 12,
-    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
-  skeletonIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#c0c0c0',
-    marginBottom: 16,
-  },
-  skeletonText: {
-    width: 120,
-    height: 18,
-    backgroundColor: '#c0c0c0',
-    marginBottom: 8,
-  },
-  skeletonTextSmall: {
-    width: 100,
-    height: 14,
-    backgroundColor: '#c0c0c0',
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
   },
 });

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("../controllers/adminController");
-const adminChildrenController = require("../controllers/adminChildrenController");
+// const adminChildrenController = require("../controllers/adminChildrenController"); // Temporarily disabled
 const { authenticate, authorize } = require("../middleware/auth");
 
 // Helper function to check if we're in development bypass mode
@@ -73,10 +73,10 @@ router.delete("/jobs/:jobId", adminController.deleteJob);
 // Audit logs
 router.get("/audit", adminController.listAuditLogs);
 
-// Children management
-router.get("/children", adminChildrenController.listChildren);
-router.get("/children/:id", adminChildrenController.getChildById);
-router.patch("/children/:id", adminChildrenController.updateChild);
-router.delete("/children/:id", adminChildrenController.deleteChild);
+// Children management (temporarily disabled)
+// router.get("/children", adminChildrenController.listChildren);
+// router.get("/children/:id", adminChildrenController.getChildById);
+// router.patch("/children/:id", adminChildrenController.updateChild);
+// router.delete("/children/:id", adminChildrenController.deleteChild);
 
 module.exports = router;

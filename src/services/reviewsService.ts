@@ -119,8 +119,8 @@ export const fetchReviews = async (options: FetchReviewsOptions = {}): Promise<R
       createdAt: row.created_at ?? new Date().toISOString(),
       updatedAt: row.updated_at ?? new Date().toISOString(),
       reviewerInfo: {
-        name: reviewer?.name ?? 'Unknown Reviewer',
-        email: reviewer?.email ?? 'unknown@example.com',
+        name: reviewer?.name ?? 'Reviewer not specified',
+        email: reviewer?.email ?? 'Email not available',
         role: reviewer?.role,
       },
       revieweeInfo: {

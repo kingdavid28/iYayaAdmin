@@ -102,7 +102,7 @@ export default function UsersScreen() {
 
   const userTypes = [
     { label: 'All Users', value: 'all', icon: 'account-group' },
-    { label: 'Parents', value: 'parent', icon: 'account-child' },
+    { label: 'Parents', value: 'parent', icon: 'child-care' },
     { label: 'Caregivers', value: 'caregiver', icon: 'account-heart' },
     { label: 'Admins', value: 'admin', icon: 'shield-account' },
     { label: 'Super Admins', value: 'superadmin', icon: 'crown' },
