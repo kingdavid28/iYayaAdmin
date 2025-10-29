@@ -1,5 +1,16 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {Alert, FlatList, RefreshControl, ScrollView, StyleSheet, View} from 'react-native';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Linking,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import {
   Button,
   Card,
@@ -13,13 +24,30 @@ import {
   TextInput,
   useTheme,
 } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {PanGestureHandler, PinchGestureHandler, State} from 'react-native-gesture-handler';
 import {Icon} from 'react-native-elements';
-import {PaymentRecord, PaymentStatus} from '../../types';
+import {PaymentProofInfo, PaymentProofSummary, PaymentRecord, PaymentStatus} from '../../types';
 import {
   fetchPayments,
   updatePaymentStatus,
   refundPayment,
 } from '../../services/paymentsService';
+
+const AnimatedImage = Animated.createAnimatedComponent(Image);
+const WINDOW = Dimensions.get('window');
+const PREVIEW_MAX_WIDTH = Math.min(WINDOW.width * 0.9, 500);
+const PREVIEW_MAX_HEIGHT = Math.min(WINDOW.height * 0.6, 500);
+const LAST_PROOF_STORAGE_KEY = 'payments:lastProof';
+
+type ProofEntry = {
+  id: string;
+  url: string;
+  mimeType?: string | null;
+  uploadedAt?: string | null;
+  uploadedBy?: string | null;
+  paymentId: string;
+};
 
 const STATUS_FILTERS: Array<{label: string; value: PaymentStatus | 'all'; icon: string; color: string}> = [
   {label: 'All', value: 'all', icon: 'select-all', color: '#616161'},
@@ -64,6 +92,7 @@ const formatDateTime = (value: string) => {
 
 export default function PaymentsManagementScreen() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [proofSummary, setProofSummary] = useState<PaymentProofSummary | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,9 +103,185 @@ export default function PaymentsManagementScreen() {
   const [refundDialog, setRefundDialog] = useState<{visible: boolean; paymentId: string | null; reason: string}>(
     {visible: false, paymentId: null, reason: ''},
   );
+  const [proofPreview, setProofPreview] = useState<{visible: boolean; proofs: ProofEntry[]; index: number}>(
+    {visible: false, proofs: [], index: 0},
+  );
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [lastViewedProof, setLastViewedProof] = useState<{paymentId: string; proofId: string} | null>(null);
   const theme = useTheme();
 
   const debouncedSearch = useDebouncedValue(searchQuery);
+  const pinchScale = useRef(new Animated.Value(1)).current;
+  const baseScale = useRef(new Animated.Value(1)).current;
+  const scale = Animated.multiply(baseScale, pinchScale);
+  const lastScale = useRef(1);
+  const pinchRef = useRef(null);
+  const panRef = useRef(null);
+
+  const resetPreviewTransforms = useCallback(() => {
+    baseScale.setValue(1);
+    pinchScale.setValue(1);
+    lastScale.current = 1;
+  }, [baseScale, pinchScale]);
+
+  const getProofEntries = useCallback((payment: PaymentRecord): ProofEntry[] => {
+    const result: ProofEntry[] = [];
+    const rawProofs = (payment as unknown as {proofs?: PaymentProofInfo[]}).proofs;
+
+    if (Array.isArray(rawProofs) && rawProofs.length > 0) {
+      rawProofs.forEach((proof, index) => {
+        const url = proof.publicUrl ?? proof.storagePath ?? null;
+        if (!url) {
+          return;
+        }
+        result.push({
+          id: String(proof.id ?? `${payment.id}-proof-${index}`),
+          url,
+          mimeType: proof.mimeType ?? undefined,
+          uploadedAt: proof.uploadedAt ?? undefined,
+          uploadedBy: proof.uploadedBy ?? undefined,
+          paymentId: payment.id,
+        });
+      });
+    } else if (payment.paymentProof) {
+      result.push({
+        id: `${payment.id}-proof`,
+        url: payment.paymentProof,
+        uploadedAt: payment.updatedAt,
+        paymentId: payment.id,
+      });
+    }
+
+    return result;
+  }, []);
+
+  const persistLastViewedProof = useCallback((paymentId: string, proofId: string) => {
+    setLastViewedProof({paymentId, proofId});
+    AsyncStorage.setItem(LAST_PROOF_STORAGE_KEY, JSON.stringify({paymentId, proofId})).catch(() => {});
+  }, []);
+
+  const openProofPreview = useCallback(
+    (payment: PaymentRecord, startIndex: number) => {
+      const entries = getProofEntries(payment);
+      if (!entries.length) {
+        Alert.alert('Proof unavailable', 'No proof is attached to this payment yet.');
+        return;
+      }
+      const initialIndex = Math.min(Math.max(startIndex, 0), entries.length - 1);
+      setPreviewError(null);
+      resetPreviewTransforms();
+      setProofPreview({visible: true, proofs: entries, index: initialIndex});
+      const selected = entries[initialIndex];
+      if (selected?.id) {
+        persistLastViewedProof(payment.id, selected.id);
+      }
+    },
+    [getProofEntries, persistLastViewedProof, resetPreviewTransforms],
+  );
+
+  const changeProofIndex = useCallback(
+    (direction: number) => {
+      const normalized = direction > 0 ? 1 : -1;
+      setProofPreview(prev => {
+        if (!prev.visible) {
+          return prev;
+        }
+        const nextIndex = prev.index + normalized;
+        if (nextIndex < 0 || nextIndex >= prev.proofs.length) {
+          return prev;
+        }
+        const nextProof = prev.proofs[nextIndex];
+        resetPreviewTransforms();
+        setPreviewError(null);
+        if (nextProof?.id) {
+          persistLastViewedProof(nextProof.paymentId, nextProof.id);
+        }
+        return {...prev, index: nextIndex};
+      });
+    },
+    [persistLastViewedProof, resetPreviewTransforms],
+  );
+
+  const closeProofPreview = useCallback(() => {
+    setProofPreview(prev => ({...prev, visible: false}));
+  }, []);
+
+  const handleOpenProofInBrowser = useCallback(() => {
+    const current = proofPreview.proofs[proofPreview.index];
+    if (!current?.url) {
+      Alert.alert('No proof link available');
+      return;
+    }
+    Linking.openURL(current.url).catch(() => {
+      Alert.alert('Unable to open proof link');
+    });
+  }, [proofPreview]);
+
+  const handlePanStateChange = useCallback(
+    (event: any) => {
+      if (event.nativeEvent.state === State.END || event.nativeEvent.state === State.CANCELLED) {
+        if (lastScale.current > 1.05) {
+          return;
+        }
+        const translationX = event.nativeEvent.translationX || 0;
+        if (translationX > 60) {
+          changeProofIndex(-1);
+        } else if (translationX < -60) {
+          changeProofIndex(1);
+        }
+      }
+    },
+    [changeProofIndex],
+  );
+
+  const onPinchEvent = useMemo(
+    () =>
+      Animated.event([{nativeEvent: {scale: pinchScale}}], {
+        useNativeDriver: true,
+      }),
+    [pinchScale],
+  );
+
+  const onPinchStateChange = useCallback(
+    (event: any) => {
+      if (event.nativeEvent.oldState === State.ACTIVE) {
+        let nextScale = lastScale.current * event.nativeEvent.scale;
+        nextScale = Math.min(Math.max(nextScale, 1), 4);
+        lastScale.current = nextScale;
+        baseScale.setValue(nextScale);
+        pinchScale.setValue(1);
+      }
+    },
+    [baseScale, pinchScale],
+  );
+
+  const formatOptionalDateTime = useCallback(
+    (value?: string | null) => (value ? formatDateTime(value) : 'Unknown'),
+    [],
+  );
+
+  const clearLastViewedProof = useCallback(() => {
+    setLastViewedProof(null);
+    AsyncStorage.removeItem(LAST_PROOF_STORAGE_KEY).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(LAST_PROOF_STORAGE_KEY)
+      .then(value => {
+        if (!value) {
+          return;
+        }
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed?.paymentId && parsed?.proofId) {
+            setLastViewedProof(parsed);
+          }
+        } catch (error) {
+          console.warn('Failed to parse last proof cache', error);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const loadPayments = useCallback(
     async (options?: {silent?: boolean}) => {
@@ -84,18 +289,27 @@ export default function PaymentsManagementScreen() {
         if (!options?.silent) {
           setLoading(true);
         }
-        const fetchedPayments = await fetchPayments({
+        const {payments: fetchedPayments, proofSummary: summary} = await fetchPayments({
           status: statusFilter,
           search: debouncedSearch.trim() ? debouncedSearch : undefined,
         });
-        setPayments(fetchedPayments);
+        const paymentList = Array.isArray(fetchedPayments) ? fetchedPayments : [];
+        setPayments(paymentList);
+        setProofSummary(summary ?? undefined);
         setNoteDrafts(prev => {
           const next: Record<string, string> = {};
-          fetchedPayments.forEach(payment => {
+          paymentList.forEach(payment => {
             next[payment.id] = prev[payment.id] ?? payment.notes ?? '';
           });
           return next;
         });
+        if (lastViewedProof) {
+          const candidatePayment = paymentList.find(payment => payment.id === lastViewedProof.paymentId);
+          const candidateProofs = candidatePayment ? getProofEntries(candidatePayment) : [];
+          if (!candidateProofs.some(proof => proof.id === lastViewedProof.proofId)) {
+            clearLastViewedProof();
+          }
+        }
       } catch (error: any) {
         Alert.alert('Error', error.message || 'Failed to load payments');
         setPayments([]);
@@ -188,7 +402,8 @@ export default function PaymentsManagementScreen() {
 
     try {
       setRefundLoadingId(paymentId);
-      await refundPayment(paymentId, refundDialog.reason.trim() || undefined);
+      const reason = (refundDialog.reason ?? '').trim();
+      await refundPayment(paymentId, reason);
       setRefundDialog({visible: false, paymentId: null, reason: ''});
       await loadPayments({silent: true});
       Alert.alert('Success', 'Refund initiated successfully.');

@@ -2,6 +2,8 @@ const {
   UserService,
   JobService,
   BookingService,
+  PaymentService,
+  PaymentProofService,
   AuditLogService,
   AuthAdminService,
   CaregiverProfileService,
@@ -122,6 +124,10 @@ const sanitizeEmail = (email) =>
 
 const safeString = (str) =>
   typeof str === "string" ? str.trim() : undefined;
+
+const trimToString = (value) => (typeof value === "string" ? value.trim() : "");
+
+const PAYMENT_STATUS_VALUES = ["pending", "paid", "disputed", "refunded"];
 
 exports.getSettings = async (_req, res) => {
   try {
@@ -245,6 +251,210 @@ const applyBookingStatusChange = async ({
   });
 
   return { booking: normalizeBooking(updatedBooking) };
+};
+
+const summarizeProofWarnings = (payment) => {
+  if (!payment) return null;
+  if (payment.proofStatus !== "needs_review") {
+    return null;
+  }
+  const uniqueIssues = Array.from(new Set(payment.proofIssues || []));
+  return uniqueIssues.length ? uniqueIssues : null;
+};
+
+const ensureNoteProvided = (note, label = "note") => {
+  const trimmed = trimToString(note);
+  if (!trimmed) {
+    return {
+      error: `${label} is required and cannot be empty`,
+      statusCode: 400,
+    };
+  }
+  return { value: trimmed };
+};
+
+// Payments management functions
+exports.listPayments = async (req, res) => {
+  try {
+    const { page = 1, limit = 25, status, search } = req.query;
+    const result = await PaymentService.list({
+      page: Number(page),
+      limit: Number(limit),
+      status,
+      search,
+    });
+
+    const suspiciousCount = result.payments.filter(
+      (payment) => payment.proofStatus === "needs_review",
+    ).length;
+
+    res.status(200).json({
+      success: true,
+      data: result.payments,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: Math.max(1, Math.ceil((result.total || 0) / result.limit)),
+      },
+      proofSummary: {
+        suspiciousCount,
+      },
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "listPayments"));
+  }
+};
+
+exports.getPaymentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await PaymentService.findById(id);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        error: "Payment not found",
+      });
+    }
+
+    const warnings = summarizeProofWarnings(payment);
+
+    res.status(200).json({
+      success: true,
+      data: payment,
+      warnings: warnings || undefined,
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "getPaymentById"));
+  }
+};
+
+exports.updatePaymentStatus = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const adminId = req.user.id;
+    const { status, notes } = req.body || {};
+
+    const normalizedStatus = trimToString(status).toLowerCase();
+    if (!PAYMENT_STATUS_VALUES.includes(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status value. Must be one of: ${PAYMENT_STATUS_VALUES.join(", ")}`,
+      });
+    }
+
+    const existing = await PaymentService.findById(paymentId);
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: "Payment not found",
+      });
+    }
+
+    if (existing.paymentStatus === normalizedStatus) {
+      return res.status(200).json({
+        success: true,
+        data: existing,
+        message: "Payment status unchanged",
+      });
+    }
+
+    if (["paid"].includes(normalizedStatus)) {
+      const validation = ensureNoteProvided(notes, "notes");
+      if (validation.error) {
+        return res.status(validation.statusCode).json({
+          success: false,
+          error: validation.error,
+        });
+      }
+    }
+
+    const updated = await PaymentService.updateStatus(paymentId, normalizedStatus, {
+      notes: trimToString(notes) || null,
+    });
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "UPDATE_PAYMENT_STATUS",
+      target_id: paymentId,
+      metadata: {
+        from: existing.paymentStatus,
+        to: normalizedStatus,
+        notes: trimToString(notes) || null,
+        proofStatus: updated.proofStatus,
+        proofIssues: updated.proofIssues,
+      },
+    });
+
+    const warnings = summarizeProofWarnings(updated);
+
+    res.status(200).json({
+      success: true,
+      data: updated,
+      message: `Payment status updated to ${normalizedStatus}`,
+      warnings: warnings || undefined,
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "updatePaymentStatus"));
+  }
+};
+
+exports.refundPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const adminId = req.user.id;
+    const { reason } = req.body || {};
+
+    const existing = await PaymentService.findById(paymentId);
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: "Payment not found",
+      });
+    }
+
+    if (existing.paymentStatus === "refunded") {
+      return res.status(400).json({
+        success: false,
+        error: "Payment is already refunded",
+      });
+    }
+
+    const validation = ensureNoteProvided(reason, "reason");
+    if (validation.error) {
+      return res.status(validation.statusCode).json({
+        success: false,
+        error: validation.error,
+      });
+    }
+
+    const updated = await PaymentService.refund(paymentId, validation.value);
+
+    await AuditLogService.create({
+      admin_id: adminId,
+      action: "REFUND_PAYMENT",
+      target_id: paymentId,
+      metadata: {
+        from: existing.paymentStatus,
+        to: updated.paymentStatus,
+        reason: validation.value,
+        proofStatus: updated.proofStatus,
+        proofIssues: updated.proofIssues,
+      },
+    });
+
+    const warnings = summarizeProofWarnings(updated);
+
+    res.status(200).json({
+      success: true,
+      data: updated,
+      message: "Payment refunded successfully",
+      warnings: warnings || undefined,
+    });
+  } catch (error) {
+    res.status(500).json(handleSupabaseError(error, "refundPayment"));
+  }
 };
 
 // Jobs management functions
@@ -1504,6 +1714,10 @@ const functionChecks = {
   startBooking: typeof exports.startBooking,
   completeBooking: typeof exports.completeBooking,
   cancelBooking: typeof exports.cancelBooking,
+  listPayments: typeof exports.listPayments,
+  getPaymentById: typeof exports.getPaymentById,
+  updatePaymentStatus: typeof exports.updatePaymentStatus,
+  refundPayment: typeof exports.refundPayment,
   listJobs: typeof exports.listJobs,
   getJobById: typeof exports.getJobById,
   updateJobStatus: typeof exports.updateJobStatus,
@@ -1535,6 +1749,12 @@ module.exports = {
   startBooking: exports.startBooking,
   completeBooking: exports.completeBooking,
   cancelBooking: exports.cancelBooking,
+
+  // Payments
+  listPayments: exports.listPayments,
+  getPaymentById: exports.getPaymentById,
+  updatePaymentStatus: exports.updatePaymentStatus,
+  refundPayment: exports.refundPayment,
 
   // Jobs
   listJobs: exports.listJobs,

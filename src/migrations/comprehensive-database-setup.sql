@@ -525,3 +525,84 @@ CREATE POLICY "Service role can manage user status history" ON user_status_histo
 -- Create storage buckets
 INSERT INTO storage.buckets (id, name, public) VALUES ('profile-images', 'profile-images', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('payment-proofs', 'payment-proofs', false) ON CONFLICT (id) DO NOTHING;
+
+-- 20251029_create_payments_table.sql
+begin;
+
+-- 1. Create payments table (idempotent)
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid references public.bookings (id) on delete restrict,
+  parent_id uuid references public.users (id) on delete restrict,
+  caregiver_id uuid references public.users (id) on delete restrict,
+  total_amount numeric(12,2) not null default 0,
+  payment_status text not null default 'pending',
+  payment_proof text,
+  notes text,
+  refund_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- 2. Ensure enum exists, then convert column
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'payment_status_type') then
+    create type payment_status_type as enum ('pending', 'paid', 'disputed', 'refunded');
+  end if;
+end;
+$$;
+
+alter table public.payments
+  alter column payment_status drop default;
+
+alter table public.payments
+  alter column payment_status
+  type payment_status_type
+  using payment_status::payment_status_type;
+
+alter table public.payments
+  alter column payment_status
+  set default 'pending'::payment_status_type;
+
+-- 3. Helpful indexes
+create index if not exists payments_booking_id_idx on public.payments (booking_id);
+create index if not exists payments_parent_id_idx on public.payments (parent_id);
+create index if not exists payments_caregiver_id_idx on public.payments (caregiver_id);
+create index if not exists payments_status_idx on public.payments (payment_status);
+
+-- 4. Keep updated_at synced
+create or replace function public.update_payments_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists payments_set_updated_at on public.payments;
+create trigger payments_set_updated_at
+before update on public.payments
+for each row execute function public.update_payments_updated_at();
+
+-- 5. Enable RLS + service-role policy
+alter table public.payments enable row level security;
+
+drop policy if exists "payments admin only" on public.payments;
+create policy "payments admin only"
+on public.payments
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+-- 6. RLS for proofs (table already exists)
+alter table public.payment_proofs enable row level security;
+
+drop policy if exists "payment proofs admin only" on public.payment_proofs;
+create policy "payment proofs admin only"
+on public.payment_proofs
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+commit;

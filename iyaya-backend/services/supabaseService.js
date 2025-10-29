@@ -595,6 +595,239 @@ class BookingService {
   }
 }
 
+const sanitizePaymentSearch = (term = '') =>
+  term
+    .trim()
+    .replace(/[%_]/g, (match) => `\\${match}`)
+    .replace(/,/g, '\\,');
+
+const assessProof = (proof) => {
+  const issues = [];
+  if (!proof.storage_path) {
+    issues.push('Missing storage path');
+  }
+  if (!proof.public_url) {
+    issues.push('Missing public URL');
+  }
+  if (!proof.mime_type) {
+    issues.push('Unknown MIME type');
+  } else if (!proof.mime_type.toLowerCase().startsWith('image/')) {
+    issues.push(`Unexpected MIME type: ${proof.mime_type}`);
+  }
+  return {
+    issues,
+    suspicious: issues.length > 0
+  };
+};
+
+const normalizeProof = (proof) => {
+  const { issues, suspicious } = assessProof(proof);
+  return {
+    id: proof.id,
+    bookingId: proof.booking_id,
+    storagePath: proof.storage_path,
+    publicUrl: proof.public_url,
+    mimeType: proof.mime_type,
+    uploadedBy: proof.uploaded_by,
+    uploadedAt: proof.uploaded_at,
+    paymentType: proof.payment_type || 'deposit',
+    uploadedByInfo: proof.uploaded_by_user || null,
+    suspicious,
+    issues
+  };
+};
+
+const normalizePaymentRecord = (record, proofsMap = new Map()) => {
+  const proofs = proofsMap.get(record.booking_id) || [];
+  const proofIssues = proofs.flatMap((proof) => proof.issues);
+  const hasSuspiciousProof = proofs.some((proof) => proof.suspicious);
+  if (!proofs.length) {
+    proofIssues.push('No payment proof uploaded');
+  }
+
+  return {
+    id: record.id,
+    bookingId: record.booking_id,
+    parentInfo: record.parent
+      ? {
+          id: record.parent.id,
+          name: record.parent.name,
+          email: record.parent.email
+        }
+      : {},
+    caregiverInfo: record.caregiver
+      ? {
+          id: record.caregiver.id,
+          name: record.caregiver.name,
+          email: record.caregiver.email
+        }
+      : {},
+    totalAmount: Number(record.total_amount || 0),
+    paymentStatus: record.payment_status,
+    paymentProof: record.payment_proof || null,
+    notes: record.notes || null,
+    refundReason: record.refund_reason || null,
+    createdAt: record.created_at,
+    updatedAt: record.updated_at,
+    proofs,
+    proofIssues,
+    proofStatus: hasSuspiciousProof || proofIssues.length ? 'needs_review' : 'ok'
+  };
+};
+
+class PaymentProofService {
+  static async listByBookingIds(bookingIds = []) {
+    if (!bookingIds.length) {
+      return new Map();
+    }
+
+    const { data, error } = await supabase
+      .from('payment_proofs')
+      .select(
+        `id,
+        booking_id,
+        storage_path,
+        public_url,
+        mime_type,
+        uploaded_by,
+        uploaded_at,
+        payment_type,
+        uploaded_by_user:uploaded_by ( id, name, email )
+      `
+      )
+      .in('booking_id', bookingIds)
+      .order('uploaded_at', { ascending: false });
+
+    if (error) throw error;
+
+    const map = new Map();
+    (data || []).forEach((row) => {
+      const normalized = normalizeProof(row);
+      const list = map.get(row.booking_id) || [];
+      list.push(normalized);
+      map.set(row.booking_id, list);
+    });
+    return map;
+  }
+
+  static async listByBookingId(bookingId) {
+    const map = await this.listByBookingIds([bookingId]);
+    return map.get(bookingId) || [];
+  }
+}
+
+class PaymentService {
+  static baseSelect = `
+    id,
+    booking_id,
+    parent_id,
+    caregiver_id,
+    total_amount,
+    payment_status,
+    payment_proof,
+    notes,
+    refund_reason,
+    created_at,
+    updated_at,
+    parent:parent_id ( id, name, email ),
+    caregiver:caregiver_id ( id, name, email ),
+    booking:booking_id ( id, status )
+  `;
+
+  static async list({ page = 1, limit = 25, status, search } = {}) {
+    let query = supabase
+      .from('payments')
+      .select(this.baseSelect, { count: 'exact' })
+      .order('created_at', { ascending: false });
+
+    if (status && status !== 'all') {
+      query = query.eq('payment_status', status);
+    }
+
+    if (search && search.trim()) {
+      const sanitized = sanitizePaymentSearch(search);
+      const orClause = [
+        `booking_id.eq.${sanitized}`,
+        `parent_id.name.ilike.%${sanitized}%`,
+        `parent_id.email.ilike.%${sanitized}%`,
+        `caregiver_id.name.ilike.%${sanitized}%`,
+        `caregiver_id.email.ilike.%${sanitized}%`
+      ].join(',');
+      query = query.or(orClause);
+    }
+
+    const offset = (page - 1) * limit;
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    const rows = data || [];
+    const bookingIds = rows.map((row) => row.booking_id).filter(Boolean);
+    const proofsMap = await PaymentProofService.listByBookingIds(bookingIds);
+
+    return {
+      payments: rows.map((row) => normalizePaymentRecord(row, proofsMap)),
+      total: count || 0,
+      page,
+      limit
+    };
+  }
+
+  static async findById(id) {
+    const { data, error } = await supabase
+      .from('payments')
+      .select(this.baseSelect)
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) return null;
+
+    const proofs = await PaymentProofService.listByBookingId(data.booking_id);
+    const proofsMap = new Map([[data.booking_id, proofs]]);
+    return normalizePaymentRecord(data, proofsMap);
+  }
+
+  static async updateStatus(id, status, { notes } = {}) {
+    const { data, error } = await supabase
+      .from('payments')
+      .update({
+        payment_status: status,
+        notes: typeof notes === 'string' ? notes : null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select(this.baseSelect)
+      .single();
+
+    if (error) throw error;
+
+    const proofs = await PaymentProofService.listByBookingId(data.booking_id);
+    const proofsMap = new Map([[data.booking_id, proofs]]);
+    return normalizePaymentRecord(data, proofsMap);
+  }
+
+  static async refund(id, reason) {
+    const { data, error } = await supabase
+      .from('payments')
+      .update({
+        payment_status: 'refunded',
+        refund_reason: reason || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select(this.baseSelect)
+      .single();
+
+    if (error) throw error;
+
+    const proofs = await PaymentProofService.listByBookingId(data.booking_id);
+    const proofsMap = new Map([[data.booking_id, proofs]]);
+    return normalizePaymentRecord(data, proofsMap);
+  }
+}
+
 /**
  * Audit Log Service - Handles audit logging
  */
@@ -986,6 +1219,8 @@ module.exports = {
   MessageService,
   JobService,
   BookingService,
+  PaymentService,
+  PaymentProofService,
   AuditLogService,
   AuthAdminService,
   CaregiverProfileService,

@@ -54,6 +54,14 @@ export interface DashboardStats {
   };
 }
 
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages?: number;
+  hasMore?: boolean;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -62,6 +70,10 @@ export interface ApiResponse<T> {
   totalPages?: number;
   currentPage?: number;
   stats?: Record<string, unknown> | null;
+  pagination?: PaginationMeta | null;
+  message?: string;
+  warnings?: string[];
+  proofSummary?: PaymentProofSummary;
 }
 
 export interface Job {
@@ -214,6 +226,25 @@ export interface SystemSettings {
 }
 
 export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'disputed';
+export type ProofStatus = 'ok' | 'needs_review';
+
+export interface PaymentProofInfo {
+  id: string;
+  bookingId: string;
+  storagePath?: string | null;
+  publicUrl?: string | null;
+  mimeType?: string | null;
+  uploadedBy?: string | null;
+  uploadedAt?: string | null;
+  paymentType?: string | null;
+  uploadedByInfo?: UserReference | null;
+  suspicious?: boolean;
+  issues?: string[];
+}
+
+export interface PaymentProofSummary {
+  suspiciousCount: number;
+}
 
 export interface PaymentRecord {
   id: string;
@@ -234,6 +265,10 @@ export interface PaymentRecord {
   createdAt: string;
   updatedAt: string;
   notes?: string | null;
+  refundReason?: string | null;
+  proofs?: PaymentProofInfo[];
+  proofIssues?: string[];
+  proofStatus?: ProofStatus;
 }
 
 export interface AnalyticsMetric {

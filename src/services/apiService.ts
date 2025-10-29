@@ -360,15 +360,20 @@ export const adminApi = {
     limit?: number;
     status?: string;
     bookingId?: string;
-  }) => apiService.get<PaymentRecord[]>("/admin/payments", params),
+    search?: string;
+  }) => apiService.get<{ payments: PaymentRecord[] }>("/admin/payments", params),
 
   getPaymentById: (paymentId: string) =>
     apiService.get<PaymentRecord>(`/admin/payments/${paymentId}`),
 
-  updatePaymentStatus: (paymentId: string, status: string, notes?: string) =>
+  updatePaymentStatus: (
+    paymentId: string,
+    status: string,
+    notes?: string,
+  ) =>
     apiService.patch(`/admin/payments/${paymentId}/status`, { status, notes }),
 
-  refundPayment: (paymentId: string, reason?: string) =>
+  refundPayment: (paymentId: string, reason: string) =>
     apiService.post(`/admin/payments/${paymentId}/refund`, { reason }),
 
   // Analytics

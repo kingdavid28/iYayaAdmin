@@ -57,6 +57,18 @@ router.post("/bookings/:bookingId/start", adminController.startBooking);
 router.post("/bookings/:bookingId/complete", adminController.completeBooking);
 router.post("/bookings/:bookingId/cancel", adminController.cancelBooking);
 
+// Payments management
+router.get("/payments", adminController.listPayments);
+router.get("/payments/:id", adminController.getPaymentById);
+router.patch(
+  "/payments/:paymentId/status",
+  adminController.updatePaymentStatus,
+);
+router.post(
+  "/payments/:paymentId/refund",
+  adminController.refundPayment,
+);
+
 // Jobs management
 router.get("/jobs", adminController.listJobs);
 router.post("/jobs", adminController.createJob);
