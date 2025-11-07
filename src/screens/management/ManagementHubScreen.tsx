@@ -13,6 +13,7 @@ interface ManagementItem {
   title: string;
   description: string;
   icon: string;
+  iconType?: string;
   color: string;
   route: keyof ManagementRoutes;
   count?: number;
@@ -96,7 +97,8 @@ export default function ManagementHubScreen() {
     {
       title: 'Children Profiles',
       description: 'Manage child information',
-      icon: 'child-care',
+      icon: 'baby-face-outline',
+      iconType: 'material-community',
       color: '#4caf50',
       route: 'ChildrenManagement',
       count: children.length,
@@ -146,7 +148,7 @@ export default function ManagementHubScreen() {
               <View style={styles.iconContainer}>
                 <Icon
                   name={item.icon}
-                  type="material"
+                  type={item.iconType ?? 'material'}
                   size={32}
                   color="white"
                 />
