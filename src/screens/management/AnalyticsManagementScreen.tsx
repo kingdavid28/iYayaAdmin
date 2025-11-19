@@ -1,8 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {RefreshControl, ScrollView, StyleSheet, View} from 'react-native';
 import {
-  ActivityIndicator,
-  Button,
   Card,
   Chip,
   FAB,
@@ -24,7 +22,6 @@ interface TrendChartProps {
 }
 
 const TrendChart = ({title, icon, data, color}: TrendChartProps) => {
-  const theme = useTheme();
   const safeData = data?.slice(-10) ?? [];
 
   return (

@@ -115,7 +115,7 @@ const mapBookingRecord = (row: BookingRow | null | undefined): Booking => {
         phone: typeof parsed?.phone === 'string' ? parsed.phone : undefined,
         relation: typeof parsed?.relation === 'string' ? parsed.relation : undefined,
       };
-    } catch (error) {
+    } catch {
       // ignore malformed JSON
     }
   } else if (emergencyContactRaw && typeof emergencyContactRaw === 'object') {
@@ -169,7 +169,7 @@ const mapBookingRecord = (row: BookingRow | null | undefined): Booking => {
           };
         });
       }
-    } catch (error) {
+    } catch {
       // ignore malformed JSON
     }
   }

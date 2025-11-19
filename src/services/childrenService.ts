@@ -6,12 +6,6 @@ export interface FetchChildrenOptions {
   search?: string;
 }
 
-const sanitizeSearchTerm = (term: string) =>
-  term
-    .trim()
-    .replace(/[%_]/g, match => `\\${match}`)
-    .replace(/,/g, '\\,');
-
 export const fetchChildren = async (options: FetchChildrenOptions = {}): Promise<ChildProfile[]> => {
   let query = supabase
     .from('children')

@@ -1175,7 +1175,8 @@ exports.updateJobStatus = async (req, res) => {
       });
     }
 
-    const validStatuses = ["open", "closed", "cancelled"];
+    // Constrained by DB enum: active, filled, cancelled, completed
+    const validStatuses = ["active", "filled", "cancelled", "completed"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -1534,13 +1535,12 @@ exports.updateBookingStatus = async (req, res) => {
     const { status, reason } = req.body || {};
     const adminId = req.user.id;
 
+    // Constrained by DB enum: pending, confirmed, completed, cancelled
     const validStatuses = [
       "pending",
       "confirmed",
-      "in_progress",
       "completed",
       "cancelled",
-      "no_show",
     ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
@@ -1610,10 +1610,12 @@ exports.startBooking = async (req, res) => {
     const { bookingId } = req.params;
     const adminId = req.user.id;
 
+    // We no longer use a separate "in_progress" status at the DB level.
+    // Treat "start" as a no-op for status (or keep as confirmed).
     const result = await applyBookingStatusChange({
       bookingId,
       adminId,
-      targetStatus: "in_progress",
+      targetStatus: "confirmed",
       auditAction: "START_BOOKING",
       allowedCurrentStatuses: ["confirmed"],
     });
@@ -1644,7 +1646,8 @@ exports.completeBooking = async (req, res) => {
       adminId,
       targetStatus: "completed",
       auditAction: "COMPLETE_BOOKING",
-      allowedCurrentStatuses: ["in_progress", "confirmed"],
+      // Only allow completing confirmed bookings
+      allowedCurrentStatuses: ["confirmed"],
     });
 
     if (result.error) {
@@ -1675,12 +1678,13 @@ exports.cancelBooking = async (req, res) => {
       targetStatus: "cancelled",
       auditAction: "CANCEL_BOOKING",
       reason,
+      // DB enum: pending, confirmed, completed, cancelled
+      // Allow cancelling from pending or confirmed only
       allowedCurrentStatuses: [
         "pending",
         "confirmed",
-        "in_progress",
       ],
-      errorHint: "Only active bookings can be cancelled",
+      errorHint: "Only pending or confirmed bookings can be cancelled",
     });
 
     if (result.error) {

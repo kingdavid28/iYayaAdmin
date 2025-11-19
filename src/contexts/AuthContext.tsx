@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useMemo, useState, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session as SupabaseSession, User as SupabaseAuthUser } from '@supabase/supabase-js';
 import { supabase } from '../config/supabase';
@@ -426,10 +426,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const logout = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('❌ Supabase logout failed:', error);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error && error.name !== 'AuthSessionMissingError') {
+        console.error('❌ Supabase logout failed:', error);
+      }
+    } catch (err) {
+      console.error('❌ Supabase logout threw:', err);
     }
+
+    // Even if Supabase has no active session, make sure local auth state is cleared
     setUser(null);
     await cacheUser(null);
     await cacheAuthToken(null);
@@ -448,3 +454,5 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+export const useAuth = () => useContext(AuthContext);

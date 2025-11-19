@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {View, StyleSheet, FlatList, ScrollView, RefreshControl, Alert, Animated, Vibration, Platform} from 'react-native';
 import {
-  ActivityIndicator,
   Button,
   Card,
   Chip,
@@ -527,15 +526,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#6200EE',
     backgroundColor: 'white',
-    shadowColor: 'transparent',
+    ...Platform.select({
+      ios: {
+        shadowColor: 'transparent',
+      },
+      android: {},
+      web: {},
+      default: {
+        shadowColor: 'transparent',
+      },
+    }),
   },
   deleteButton: {
     backgroundColor: '#B00020',
-    elevation: Platform.select({ web: 1, default: 2 }),
-    shadowColor: '#B00020',
-    shadowOffset: { width: 0, height: Platform.select({ web: 0.5, default: 1 }) },
-    shadowOpacity: Platform.select({ web: 0.1, default: 0.2 }),
-    shadowRadius: Platform.select({ web: 1, default: 2 }),
+    ...Platform.select({
+      web: {
+        boxShadow: '0 2px 6px rgba(176,0,32,0.3)',
+      },
+      android: {
+        elevation: 2,
+      },
+      ios: {
+        shadowColor: '#B00020',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      default: {
+        shadowColor: '#B00020',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+    }),
   },
   actionButtonText: {
     fontSize: 13,

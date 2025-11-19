@@ -1,7 +1,7 @@
 import React, {useContext} from 'react';
 import {createStackNavigator} from '@react-navigation/stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
-import {View, ActivityIndicator, StyleSheet} from 'react-native';
+import {View, ActivityIndicator, StyleSheet, TouchableOpacity} from 'react-native';
 import {AuthContext} from '../contexts/AuthContext';
 import LoginScreen from '../screens/auth/LoginScreen';
 import AdminSignupScreen from '../screens/auth/AdminSignupScreen';
@@ -25,6 +25,24 @@ import {Icon} from 'react-native-elements';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 const ManagementStack = createStackNavigator();
+
+function LogoutButton() {
+  const {logout} = useContext(AuthContext);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('[Logout] failed', error);
+    }
+  };
+
+  return (
+    <TouchableOpacity onPress={handleLogout} style={{marginRight: 16}}>
+      <Icon name="logout" type="material" color="#fff" />
+    </TouchableOpacity>
+  );
+}
 
 function ManagementStackNavigator() {
   return (
@@ -76,7 +94,7 @@ function AdminTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({route}) => ({
-        tabBarIcon: ({focused, color, size}) => {
+        tabBarIcon: ({color, size}) => {
           let iconName: string;
 
           switch (route.name) {
@@ -121,7 +139,13 @@ function AdminTabNavigator() {
           fontWeight: 'bold',
         },
       })}>
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          headerRight: () => <LogoutButton />,
+        }}
+      />
       <Tab.Screen name="Users" component={UsersScreen} />
       <Tab.Screen name="Jobs" component={JobsScreen} />
       <Tab.Screen name="Bookings" component={BookingsScreen} />

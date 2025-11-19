@@ -20,7 +20,7 @@ export interface FetchJobsResult {
   stats: {
     total: number;
     active: number;
-    inactive: number;
+    filled: number;
     completed: number;
     cancelled: number;
   };
@@ -115,7 +115,8 @@ const mapJobRecord = (row: JobRow | null | undefined): Job => {
     id: row.id,
     title: row.title ?? row.name ?? jobDetails?.title ?? "Untitled Job",
     description: row.description ?? "",
-    status: row.status ?? "pending",
+    // DB default is 'active'; fall back to that instead of a non-existent 'pending'
+    status: row.status ?? "active",
     location: row.location ?? jobDetails?.location ?? "Unknown location",
     budget: (() => {
       // If budget is explicitly set and > 0, use it
@@ -223,9 +224,9 @@ export const fetchJobs = async (
   const total = count ?? rows.length;
   const hasMore = offset + rows.length < total;
 
-  const [active, inactive, completed, cancelled] = await Promise.all([
+  const [active, filled, completed, cancelled] = await Promise.all([
     countJobsWithFilters(options, "active"),
-    countJobsWithFilters(options, "inactive"),
+    countJobsWithFilters(options, "filled"),
     countJobsWithFilters(options, "completed"),
     countJobsWithFilters(options, "cancelled"),
   ]);
@@ -241,7 +242,7 @@ export const fetchJobs = async (
     stats: {
       total,
       active,
-      inactive,
+      filled,
       completed,
       cancelled,
     },

@@ -80,7 +80,7 @@ export interface Job {
   id: string;
   title: string;
   description: string;
-  status: 'open' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'active' | 'inactive';
+  status: 'open' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'active' | 'inactive' | 'filled';
   parentId: {
     name: string;
     email: string;

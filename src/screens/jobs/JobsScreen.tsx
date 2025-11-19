@@ -5,6 +5,7 @@ import {
   FlatList,
   RefreshControl,
   Alert,
+  Platform,
 } from "react-native";
 import {
   Text,
@@ -12,8 +13,6 @@ import {
   FAB,
   Searchbar,
   Chip,
-  ActivityIndicator,
-  useTheme,
   Surface,
 } from "react-native-paper";
 import { Icon } from "react-native-elements";
@@ -48,34 +47,27 @@ export default function JobsScreen() {
   const [jobStats, setJobStats] = useState({
     total: 0,
     active: 0,
-    inactive: 0,
+    filled: 0,
     completed: 0,
     cancelled: 0,
   });
   const navigation = useNavigation<JobsScreenNavigationProp>();
-  const theme = useTheme();
 
   const jobStatuses = useMemo(
     () => [
       { label: "All Jobs", value: "all" },
-      { label: "Pending", value: "pending" },
       { label: "Active", value: "active" },
-      { label: "Inactive", value: "inactive" },
-      { label: "Open", value: "open" },
-      { label: "Confirmed", value: "confirmed" },
+      { label: "Filled", value: "filled" },
       { label: "Completed", value: "completed" },
       { label: "Cancelled", value: "cancelled" },
     ],
   []);
 
   const statusColors: Record<string, string> = {
-    pending: "#ff9800",
-    open: "#4caf50",
-    confirmed: "#2196f3",
+    active: "#4caf50",
+    filled: "#2196f3",
     completed: "#673ab7",
     cancelled: "#f44336",
-    active: "#4caf50",
-    inactive: "#9e9e9e",
   };
 
   const formatBudgetDisplay = (budget: number) => {
@@ -287,7 +279,8 @@ export default function JobsScreen() {
             onPress={() => navigateToJobEdit(job)}
           />
           <View style={styles.actionButtons}>
-            {["pending", "open", "inactive"].includes(job.status) && (
+            {/* Approve: move from active to filled */}
+            {job.status === "active" && (
               <Icon
                 name="check-circle"
                 type="material"
@@ -296,7 +289,8 @@ export default function JobsScreen() {
                 onPress={() => handleJobAction(job, "approve")}
               />
             )}
-            {["pending", "open", "inactive"].includes(job.status) && (
+            {/* Reject: treat as cancelled */}
+            {job.status === "active" && (
               <Icon
                 name="highlight-off"
                 type="material"
@@ -305,7 +299,8 @@ export default function JobsScreen() {
                 onPress={() => handleJobAction(job, "reject")}
               />
             )}
-            {["confirmed", "open", "active"].includes(job.status) && (
+            {/* Complete from filled */}
+            {job.status === "filled" && (
               <Icon
                 name="task-alt"
                 type="material"
@@ -314,7 +309,8 @@ export default function JobsScreen() {
                 onPress={() => handleJobAction(job, "complete")}
               />
             )}
-            {job.status !== "cancelled" && (
+            {/* Cancel from active or filled */}
+            {["active", "filled"].includes(job.status) && (
               <Icon
                 name="cancel"
                 type="material"
@@ -323,7 +319,8 @@ export default function JobsScreen() {
                 onPress={() => handleJobAction(job, "cancel")}
               />
             )}
-            {["cancelled", "completed", "inactive"].includes(job.status) && (
+            {/* Reopen moves cancelled/completed back to active */}
+            {["cancelled", "completed"].includes(job.status) && (
               <Icon
                 name="autorenew"
                 type="material"
@@ -405,10 +402,10 @@ export default function JobsScreen() {
                 variant="headlineSmall"
                 style={[styles.statNumber, styles.statInactive]}
               >
-                {jobStats.inactive}
+                {jobStats.filled}
               </Text>
               <Text variant="bodySmall" style={styles.statLabel}>
-                Inactive
+                Filled
               </Text>
             </View>
             <View style={styles.statItem}>
@@ -498,12 +495,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 1,
     gap: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+      web: {
+        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+      },
+      default: {},
+    }),
   },
   skeletonTitle: {
     height: 20,

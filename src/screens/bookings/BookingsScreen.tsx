@@ -5,6 +5,7 @@ import {
   FlatList,
   RefreshControl,
   Alert,
+  Platform,
 } from "react-native";
 import {
   Text,
@@ -12,8 +13,6 @@ import {
   FAB,
   Chip,
   Menu,
-  ActivityIndicator,
-  useTheme,
 } from "react-native-paper";
 import { Icon } from "react-native-elements";
 import { useNavigation } from "@react-navigation/native";
@@ -21,9 +20,7 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { Booking } from "../../types";
 import {
   fetchBookings,
-  updateBookingStatus,
   confirmBooking,
-  startBooking,
   completeBooking,
   cancelBooking,
   type FetchBookingsOptions,
@@ -45,27 +42,22 @@ export default function BookingsScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [menuVisibleId, setMenuVisibleId] = useState<string | null>(null);
   const navigation = useNavigation<BookingsScreenNavigationProp>();
-  const theme = useTheme();
 
   const bookingStatuses = useMemo(
     () => [
       { label: "All Bookings", value: "all" },
       { label: "Pending", value: "pending" },
       { label: "Confirmed", value: "confirmed" },
-      { label: "In Progress", value: "in_progress" },
       { label: "Completed", value: "completed" },
       { label: "Cancelled", value: "cancelled" },
-      { label: "No Show", value: "no_show" },
     ],
   []);
 
   const statusColors: Record<string, string> = {
     pending: "#ff9800",
     confirmed: "#2196f3",
-    in_progress: "#9c27b0",
     completed: "#4caf50",
     cancelled: "#f44336",
-    no_show: "#795548",
   };
 
   const formatStatusLabel = (status: string) =>
@@ -123,7 +115,7 @@ export default function BookingsScreen() {
 
   const handleBookingAction = (
     booking: Booking,
-    action: "confirm" | "start" | "complete" | "cancel" | "no_show",
+    action: "confirm" | "complete" | "cancel",
   ) => {
     const actionConfig: Record<
       typeof action,
@@ -140,12 +132,6 @@ export default function BookingsScreen() {
         success: "Booking confirmed successfully.",
         execute: () => confirmBooking(booking.id),
       },
-      start: {
-        title: "Start Booking",
-        message: "Mark this booking as in progress?",
-        success: "Booking marked as in progress.",
-        execute: () => startBooking(booking.id),
-      },
       complete: {
         title: "Complete Booking",
         message: "Mark this booking as completed?",
@@ -157,12 +143,6 @@ export default function BookingsScreen() {
         message: "Cancel this booking?",
         success: "Booking cancelled successfully.",
         execute: () => cancelBooking(booking.id),
-      },
-      no_show: {
-        title: "Mark No Show",
-        message: "Mark this booking as no-show?",
-        success: "Booking marked as no-show.",
-        execute: () => updateBookingStatus(booking.id, "no_show"),
       },
     };
 
@@ -291,13 +271,6 @@ export default function BookingsScreen() {
               }}
             />
             <Menu.Item
-              title="Mark In Progress"
-              onPress={() => {
-                setMenuVisibleId(null);
-                handleBookingAction(booking, "start");
-              }}
-            />
-            <Menu.Item
               title="Mark Completed"
               onPress={() => {
                 setMenuVisibleId(null);
@@ -309,13 +282,6 @@ export default function BookingsScreen() {
               onPress={() => {
                 setMenuVisibleId(null);
                 handleBookingAction(booking, "cancel");
-              }}
-            />
-            <Menu.Item
-              title="Mark No Show"
-              onPress={() => {
-                setMenuVisibleId(null);
-                handleBookingAction(booking, "no_show");
               }}
             />
           </Menu>
@@ -420,12 +386,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 1,
     gap: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+      web: {
+        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+      },
+      default: {},
+    }),
   },
   skeletonMetaRow: {
     flexDirection: "row",

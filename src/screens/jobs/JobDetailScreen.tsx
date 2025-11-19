@@ -11,12 +11,9 @@ import {
   Card,
   Button,
   Chip,
-  ActivityIndicator,
-  useTheme,
   Portal,
   Dialog,
   TextInput,
-  FAB,
 } from 'react-native-paper';
 import { Icon } from 'react-native-elements';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -32,7 +29,7 @@ import {
   updateJob,
   deleteJob,
 } from '../../services/jobsService';
-import { SkeletonBlock, SkeletonCircle } from '../../components/skeletons/Skeleton';
+import { SkeletonBlock } from '../../components/skeletons/Skeleton';
 
 type RootStackParamList = {
   JobDetail: { jobId: string; editMode?: boolean };
@@ -45,11 +42,8 @@ export default function JobDetailScreen() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [statusDialogVisible, setStatusDialogVisible] = useState(false);
   const [editDialogVisible, setEditDialogVisible] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
-  const [statusReason, setStatusReason] = useState('');
   const [updating, setUpdating] = useState(false);
 
   // Edit state
@@ -61,7 +55,6 @@ export default function JobDetailScreen() {
 
   const navigation = useNavigation<JobDetailScreenNavigationProp>();
   const route = useRoute<JobDetailScreenRouteProp>();
-  const theme = useTheme();
 
   const { jobId, editMode } = route.params;
 

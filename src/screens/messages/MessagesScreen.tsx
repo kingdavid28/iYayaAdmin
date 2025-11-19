@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useRef} from 'react';
+import React, {useState, useRef} from 'react';
 import {
   View,
   StyleSheet,
@@ -12,26 +12,41 @@ import {
   Card,
   FAB,
   ActivityIndicator,
-  useTheme,
   Chip,
-  Avatar,
 } from 'react-native-paper';
 import {Icon} from 'react-native-elements';
-import {useNavigation, useFocusEffect} from '@react-navigation/native';
-import {messagingService, Message, Conversation} from '../services/messagingService';
-import {useAuth} from '../contexts/AuthContext';
+import {useFocusEffect} from '@react-navigation/native';
+import {messagingService, Message, Conversation} from '../../services/messagingService';
+import {useAuth} from '../../contexts/AuthContext';
+
+type ConversationParticipant = {
+  email?: string | null;
+  name?: string | null;
+};
+
+type ConversationView = Conversation & {
+  participants?: Record<string, ConversationParticipant>;
+  lastMessage?: {
+    content?: string;
+    timestamp?: string;
+  } | null;
+};
+
+type MessageView = Message & {
+  senderId?: string;
+  senderName?: string;
+  timestamp?: string;
+};
 
 export default function MessagesScreen() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationView[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<ConversationView | null>(null);
+  const [messages, setMessages] = useState<MessageView[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [showNewMessageDialog, setShowNewMessageDialog] = useState(false);
 
-  const navigation = useNavigation();
-  const theme = useTheme();
+
   const {user} = useAuth();
   const flatListRef = useRef<FlatList>(null);
 
@@ -50,13 +65,16 @@ export default function MessagesScreen() {
     try {
       setLoading(true);
       const userConversations = await messagingService.getConversations(user?.id || '');
-      setConversations(userConversations);
+      setConversations(userConversations as ConversationView[]);
 
       // Subscribe to real-time updates
       if (user?.id) {
-        messagingService.subscribeToConversations(user.id, (updatedConversations) => {
-          setConversations(updatedConversations);
-        });
+        messagingService.subscribeToConversations(
+          user.id,
+          (updatedConversations: ConversationView[]) => {
+            setConversations(updatedConversations);
+          },
+        );
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to load conversations');
@@ -65,20 +83,23 @@ export default function MessagesScreen() {
     }
   };
 
-  const loadMessages = async (conversation: Conversation) => {
+  const loadMessages = async (conversation: ConversationView) => {
     try {
       setSelectedConversation(conversation);
       const conversationMessages = await messagingService.getMessages(conversation.id);
-      setMessages(conversationMessages);
+      setMessages(conversationMessages as MessageView[]);
 
       // Subscribe to real-time message updates
-      messagingService.subscribeToConversation(conversation.id, (updatedMessages) => {
-        setMessages(updatedMessages);
-        // Scroll to bottom when new messages arrive
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({animated: true});
-        }, 100);
-      });
+      messagingService.subscribeToConversation(
+        conversation.id,
+        (updatedMessages: MessageView[]) => {
+          setMessages(updatedMessages);
+          // Scroll to bottom when new messages arrive
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({animated: true});
+          }, 100);
+        },
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to load messages');
     }
@@ -102,21 +123,28 @@ export default function MessagesScreen() {
     }
   };
 
-  const formatTime = (timestamp: string) => {
+  const formatTime = (timestamp?: string) => {
+    if (!timestamp) {
+      return '';
+    }
     return new Date(timestamp).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
     });
   };
 
-  const getParticipantNames = (conversation: Conversation) => {
-    return Object.values(conversation.participants)
+  const getParticipantNames = (conversation: ConversationView) => {
+    const participants = conversation.participants ?? {};
+    const participantValues = Object.values(participants);
+
+    return participantValues
       .filter(p => p.email !== user?.email) // Exclude current user
-      .map(p => p.name)
+      .map(p => p.name ?? '')
+      .filter(name => name.trim().length > 0)
       .join(', ');
   };
 
-  const renderConversationItem = ({item: conversation}: {item: Conversation}) => (
+  const renderConversationItem = ({item: conversation}: {item: ConversationView}) => (
     <Card
       style={[
         styles.conversationCard,
@@ -150,7 +178,7 @@ export default function MessagesScreen() {
     </Card>
   );
 
-  const renderMessageItem = ({item: message}: {item: Message}) => (
+  const renderMessageItem = ({item: message}: {item: MessageView}) => (
     <View style={[
       styles.messageContainer,
       message.senderId === user?.id ? styles.ownMessage : styles.otherMessage,
@@ -218,7 +246,7 @@ export default function MessagesScreen() {
 
           <FAB
             icon="message-plus"
-            onPress={() => setShowNewMessageDialog(true)}
+            onPress={() => {}}
             style={styles.fab}
           />
         </>
@@ -231,7 +259,7 @@ export default function MessagesScreen() {
               onPress={() => setSelectedConversation(null)}>
               <Icon name="arrow-back" type="material" color="#3f51b5" size={24} />
             </TouchableOpacity>
-            <Text variant="titleLarge" style={styles.conversationTitle}>
+            <Text variant="titleLarge" style={styles.activeConversationTitle}>
               {getParticipantNames(selectedConversation)}
             </Text>
             <Chip style={styles.typeChip}>
@@ -352,7 +380,7 @@ const styles = StyleSheet.create({
   backButton: {
     marginRight: 16,
   },
-  conversationTitle: {
+  activeConversationTitle: {
     flex: 1,
     fontWeight: 'bold',
     color: '#3f51b5',

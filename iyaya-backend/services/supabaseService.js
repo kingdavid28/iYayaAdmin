@@ -513,6 +513,30 @@ class JobService {
     if (error) throw error;
     return data;
   }
+
+  // Align high-level transitions with DB enum: active, filled, cancelled, completed
+  static async approve(id) {
+    // Job has been accepted/assigned -> mark as filled
+    return this.updateStatus(id, 'filled');
+  }
+
+  static async reject(id /* reason not stored on jobs table */) {
+    // Rejected jobs are treated as cancelled
+    return this.updateStatus(id, 'cancelled');
+  }
+
+  static async cancel(id /* reason not stored on jobs table */) {
+    return this.updateStatus(id, 'cancelled');
+  }
+
+  static async complete(id) {
+    return this.updateStatus(id, 'completed');
+  }
+
+  static async reopen(id) {
+    // Re-open moves job back to active/open state
+    return this.updateStatus(id, 'active');
+  }
 }
 
 /**

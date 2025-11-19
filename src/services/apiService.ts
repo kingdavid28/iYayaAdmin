@@ -3,7 +3,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ApiResponse,
-  User,
   Review,
   ChildProfile,
   NotificationItem,
@@ -232,7 +231,11 @@ export const adminApi = {
     apiService.post(`/admin/jobs/${jobId}/complete`),
 
   deleteJob: (jobId: string, payload?: { reason?: string }) =>
-    apiService.delete(`/admin/jobs/${jobId}`),
+    apiService.delete(
+      `/admin/jobs/${jobId}${
+        payload?.reason ? `?reason=${encodeURIComponent(payload.reason)}` : ''
+      }`,
+    ),
 
   reopenJob: (jobId: string) => apiService.post(`/admin/jobs/${jobId}/reopen`),
 

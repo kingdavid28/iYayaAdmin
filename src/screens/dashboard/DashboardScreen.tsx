@@ -1,8 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {AppState, AppStateStatus, RefreshControl, ScrollView, StyleSheet, View} from 'react-native';
-import {FAB, Snackbar, Text} from 'react-native-paper';
+import {Platform, RefreshControl, ScrollView, StyleSheet, View} from 'react-native';
+import {FAB, Text} from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Asset} from 'expo-asset';
 import {fetchDashboardStats} from '../../services/dashboardService';
 import {DashboardStats} from '../../types';
 import type {StatCardItem} from './components/StatCardGrid';
@@ -463,12 +462,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: {width: 0, height: 2},
-    shadowRadius: 4,
-    elevation: 1,
     gap: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowOffset: {width: 0, height: 2},
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+      web: {
+        boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
+      },
+      default: {},
+    }),
   },
   skeletonCardHeader: {
     flexDirection: 'row',

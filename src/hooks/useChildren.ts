@@ -57,7 +57,7 @@ const mapRowToChild = (row: ChildRow): ChildProfile => {
     ? (() => {
         try {
           return JSON.parse(row.emergency_contact);
-        } catch (_error) {
+        } catch {
           return row.emergency_contact;
         }
       })()

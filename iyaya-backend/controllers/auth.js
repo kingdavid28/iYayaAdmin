@@ -1024,7 +1024,7 @@ exports.verifyEmail = async (req, res, next) => {
     
     if (isFromBrowser) {
       // Try Expo Go first, then custom scheme
-      const expoURL = `exp://192.168.1.26:8081/--/verify-email?token=${token}`;
+      const expoURL = `exp://192.168.1.5:8081/--/verify-email?token=${token}`;
       const customURL = `iyaya://verify-email?token=${token}`;
       
       // Create a redirect page that tries both

@@ -288,3 +288,5 @@ fetchDashboardStats()
 [Resilient fetch] Wrap Supabase calls with retry/backoff and show a snackbar when offline; use AppState to trigger background refresh on foreground entry.
 
 https://github.com/kingdavid28/iYayaAdmin
+
+

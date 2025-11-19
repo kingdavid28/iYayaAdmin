@@ -11,6 +11,8 @@ const helmet = require('helmet');
 const hpp = require('hpp');
 const cookieParser = require('cookie-parser');
 const { rateLimit } = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
 const { authenticate, authorize } = require('./middleware/auth');
 const config = require('./config/env');
 const socketService = require('./services/socketService');
@@ -26,7 +28,10 @@ const limiter = rateLimit({
   message: { success: false, error: 'Too many requests from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV === 'development' || (req.user?.role === 'admin') || (req.originalUrl?.startsWith('/api/messages')),
+  skip: (req) =>
+    process.env.NODE_ENV === 'development' ||
+    (req.user?.role === 'admin') ||
+    (req.originalUrl?.startsWith('/api/messages')),
 });
 
 app.use('/api', limiter);
@@ -37,7 +42,7 @@ const getExpoGoOrigins = () => {
   const commonIPs = [
     'localhost',
     '127.0.0.1',
-    '192.168.1.11',
+    '192.168.1.5',
     '192.168.1.10',
     '192.168.0.10',
     '10.0.0.10',
@@ -57,7 +62,7 @@ const getExpoGoOrigins = () => {
 
   // Add Expo Go specific patterns
   origins.push(
-    'exp://192.168.1.11:19000',
+    'exp://192.168.1.5:19000',
     'exp://192.168.1.10:19000',
     'exp://192.168.0.10:19000',
     'exp://10.0.0.10:19000',
@@ -149,6 +154,8 @@ app.use(helmet({
   xssFilter: true
 }));
 
+// app.use(mongoSanitize()); // Temporarily disabled for debugging
+// app.use(xss()); // Temporarily disabled for debugging
 app.use(hpp());
 
 // Request Processing
@@ -262,6 +269,15 @@ app.use((err, req, res, next) => {
     success: false,
     error: err.message
   };
+
+  // Check if this is the "Invalid data format" error for easier debugging
+  if (err.message === 'Invalid data format') {
+    console.error('❌ Found "Invalid data format" in global handler:', {
+      name: err.name,
+      constructor: err.constructor.name,
+      keys: Object.keys(err)
+    });
+  }
 
   if (config.env === 'development') {
     response.stack = err.stack;

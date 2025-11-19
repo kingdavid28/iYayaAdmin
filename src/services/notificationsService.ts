@@ -68,7 +68,7 @@ const parseData = (value: unknown): Record<string, unknown> | null => {
   }
   try {
     return JSON.parse(String(value)) as Record<string, unknown>;
-  } catch (error) {
+  } catch {
     return { raw: value };
   }
 };

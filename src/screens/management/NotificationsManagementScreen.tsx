@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Alert, FlatList, Image, Linking, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View} from 'react-native';
 import {
-  ActivityIndicator,
   Avatar,
   Button,
   Card,
@@ -87,7 +86,7 @@ const formatCurrency = (value: number | undefined): string | undefined => {
       style: 'currency',
       currency: 'PHP',
     });
-  } catch (error) {
+  } catch {
     return value.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -241,7 +240,7 @@ export default function NotificationsManagementScreen() {
         hour: 'numeric',
         minute: '2-digit',
       });
-    } catch (error) {
+    } catch {
       return value;
     }
   }, []);
@@ -305,7 +304,7 @@ export default function NotificationsManagementScreen() {
       try {
         parsedData = JSON.parse(composePayload.data.trim()) as Record<string, unknown>;
         setDataFieldError(null);
-      } catch (error) {
+      } catch {
         setDataFieldError('Please provide valid JSON.');
         return;
       }
@@ -363,7 +362,7 @@ export default function NotificationsManagementScreen() {
         try {
           const parsed = JSON.parse(trimmed);
           normalizedData = parsed;
-        } catch (error) {
+        } catch {
           return (
             <Text variant="bodySmall" style={styles.jsonText}>
               {summarizeValue(trimmed)}

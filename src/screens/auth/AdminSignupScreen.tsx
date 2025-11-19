@@ -12,8 +12,6 @@ import {
   TextInput,
   Button,
   Card,
-  ActivityIndicator,
-  useTheme,
   SegmentedButtons,
 } from 'react-native-paper';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -22,11 +20,21 @@ interface AdminSignupScreenProps {
   navigation: any;
 }
 
+type AdminRole = 'admin' | 'superadmin';
+
+interface AdminSignupFormState {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  role: AdminRole;
+}
+
 // Authorized Super Admin email
 const SUPER_ADMIN_EMAIL = 'reycelrcentino@gmail.com';
 
 export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AdminSignupFormState>({
     name: '',
     email: '',
     password: '',
@@ -34,7 +42,6 @@ export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) 
     role: 'admin',
   });
   const [loading, setLoading] = useState(false);
-  const theme = useTheme();
   const { signup } = useContext(AuthContext);
 
   const handleSignup = async () => {
@@ -104,8 +111,14 @@ export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) 
     }
   };
 
-  const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({...prev, [field]: value}));
+  const updateFormData = <K extends keyof AdminSignupFormState>(
+    field: K,
+    value: AdminSignupFormState[K],
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   return (
@@ -148,7 +161,7 @@ export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) 
               </Text>
               <SegmentedButtons
                 value={formData.role}
-                onValueChange={(value) => updateFormData('role', value)}
+                onValueChange={(value) => updateFormData('role', value as AdminRole)}
                 buttons={[
                   {
                     value: 'admin',

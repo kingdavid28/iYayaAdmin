@@ -13,8 +13,6 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const path = require('path');
 
 // Load environment variables
 require('dotenv').config();
@@ -46,7 +44,7 @@ const results = {
  */
 async function testConnection() {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('users')
       .select('count', { count: 'exact', head: true });
 
@@ -177,7 +175,7 @@ async function testProfile() {
     }
 
     // Test profile creation/update
-    const { data: profile, error: profileError } = await supabase
+    const { error: profileError } = await supabase
       .from('users')
       .insert({
         id: signupData.user.id,
@@ -195,7 +193,7 @@ async function testProfile() {
     }
 
     // Test profile retrieval
-    const { data: retrievedProfile, error: retrieveError } = await supabase
+    const { error: retrieveError } = await supabase
       .from('users')
       .select('*')
       .eq('id', signupData.user.id)
@@ -207,7 +205,7 @@ async function testProfile() {
     }
 
     // Test profile update
-    const { data: updatedProfile, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('users')
       .update({ name: 'Fully Updated Test User' })
       .eq('id', signupData.user.id)
@@ -274,7 +272,7 @@ async function testConversations() {
     }
 
     // Test conversation retrieval
-    const { data: conversations, error: retrieveError } = await supabase
+    const { error: retrieveError } = await supabase
       .from('conversations')
       .select('*')
       .eq('id', conversation.id);
@@ -285,7 +283,7 @@ async function testConversations() {
     }
 
     // Test conversation query by user
-    const { data: userConversations, error: queryError } = await supabase
+    const { error: queryError } = await supabase
       .from('conversations')
       .select('*')
       .or(`participant_1.eq.${user1Data.user.id},participant_2.eq.${user1Data.user.id}`);
@@ -366,7 +364,7 @@ async function testMessages() {
     }
 
     // Test message retrieval
-    const { data: messages, error: retrieveError } = await supabase
+    const { error: retrieveError } = await supabase
       .from('messages')
       .select('*')
       .eq('conversation_id', conversation.id)
@@ -378,7 +376,7 @@ async function testMessages() {
     }
 
     // Test message update (mark as read)
-    const { data: updatedMessage, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('messages')
       .update({ read_at: new Date().toISOString() })
       .eq('id', message.id)

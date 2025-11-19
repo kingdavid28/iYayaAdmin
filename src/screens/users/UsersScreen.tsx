@@ -14,7 +14,6 @@ import {
   FAB,
   Searchbar,
   Chip,
-  ActivityIndicator,
   useTheme,
   Avatar,
   Badge,
@@ -31,7 +30,8 @@ import {
   RadioButton
 } from 'react-native-paper';
 import {Icon} from 'react-native-elements';
-import {useNavigation, useFocusEffect} from '@react-navigation/native';
+import {useNavigation} from '@react-navigation/native';
+import profilePlaceholder from '../../../assets/profile-placeholder.png';
 import {Platform} from 'react-native';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {StackNavigationProp} from '@react-navigation/stack';
@@ -102,7 +102,7 @@ export default function UsersScreen() {
 
   const userTypes = [
     { label: 'All Users', value: 'all', icon: 'account-group' },
-    { label: 'Parents', value: 'parent', icon: 'child-care' },
+    { label: 'Parents', value: 'parent', icon: 'baby-face-outline' },
     { label: 'Caregivers', value: 'caregiver', icon: 'account-heart' },
     { label: 'Admins', value: 'admin', icon: 'shield-account' },
     { label: 'Super Admins', value: 'superadmin', icon: 'crown' },
@@ -377,7 +377,7 @@ export default function UsersScreen() {
                   <View style={styles.userAvatarContainer}>
                     <Avatar.Image
                       size={60}
-                      source={user.profileImage ? { uri: user.profileImage } : require('../../../assets/profile-placeholder.png')}
+                      source={user.profileImage ? { uri: user.profileImage } : profilePlaceholder}
                       style={styles.userAvatar}
                     />
                     <Badge
@@ -1105,7 +1105,7 @@ const styles = StyleSheet.create({
         elevation: 1,
       },
       web: {
-        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
       },
       default: {},
     }),
@@ -1289,7 +1289,7 @@ const styles = StyleSheet.create({
         elevation: 1,
       },
       web: {
-        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.12)',
       },
       default: {},
     }),

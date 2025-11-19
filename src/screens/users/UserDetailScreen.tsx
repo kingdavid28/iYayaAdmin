@@ -11,8 +11,6 @@ import {
   Card,
   Button,
   Chip,
-  ActivityIndicator,
-  useTheme,
   Portal,
   Dialog,
   TextInput,
@@ -42,7 +40,6 @@ export default function UserDetailScreen() {
 
   const navigation = useNavigation<UserDetailScreenNavigationProp>();
   const route = useRoute<UserDetailScreenRouteProp>();
-  const theme = useTheme();
 
   const { userId } = route.params;
 

@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  RefreshControl,
   Alert,
 } from 'react-native';
 import {
@@ -12,7 +11,6 @@ import {
   Switch,
   Button,
   ActivityIndicator,
-  useTheme,
   Portal,
   Dialog,
   TextInput,
@@ -38,7 +36,6 @@ export default function SettingsScreen() {
   const [exportDialogVisible, setExportDialogVisible] = useState(false);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [exportUserType, setExportUserType] = useState<string>('');
-  const theme = useTheme();
 
   const loadSettings = async () => {
     try {
@@ -91,7 +88,7 @@ export default function SettingsScreen() {
 
   const handleExport = async () => {
     try {
-      const response = await adminApi.exportUsers(exportFormat, exportUserType || undefined);
+      await adminApi.exportUsers(exportFormat, exportUserType || undefined);
 
       // In a real app, you would handle the file download here
       Alert.alert(

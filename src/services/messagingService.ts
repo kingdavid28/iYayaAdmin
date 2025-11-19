@@ -140,7 +140,7 @@ class MessagingService {
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
         },
-        async (payload) => {
+        async () => {
           // Fetch updated messages
           const messages = await this.getMessages(conversationId);
           callback(messages);

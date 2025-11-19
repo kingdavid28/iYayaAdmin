@@ -12,8 +12,6 @@ import {
   TextInput,
   Button,
   Card,
-  ActivityIndicator,
-  useTheme,
 } from 'react-native-paper';
 import {AuthContext} from '../../contexts/AuthContext';
 
@@ -26,7 +24,6 @@ export default function LoginScreen({navigation}: LoginScreenProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const {login} = useContext(AuthContext);
-  const theme = useTheme();
 
   const handleLogin = async () => {
     // Basic front-end validation for empty inputs

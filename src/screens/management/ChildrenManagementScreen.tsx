@@ -396,7 +396,7 @@ export default function ChildrenManagementScreen() {
 
     return (
       <View style={styles.emptyContainer}>
-        <Icon name="baby-face-outline" size={48} color={theme.colors.outline} />
+        <Icon name="baby-face-outline" type="material-community" size={48} color={theme.colors.outline} />
         <Text style={styles.emptyText}>No children found</Text>
         {debouncedQuery ? (
           <Button
