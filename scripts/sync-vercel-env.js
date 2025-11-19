@@ -38,7 +38,7 @@ console.log(`Syncing ${envVars.length} env vars to Vercel project "${projectName
 envVars.forEach(([key, value]) => {
   try {
     execSync(
-      `vercel env add ${key} ${targetEnv} --project ${projectName}`,
+       `npx vercel env add ${key} ${targetEnv}`,
       { input: `${value}\n`, stdio: ['pipe', 'inherit', 'inherit'] }
     );
   } catch (err) {
