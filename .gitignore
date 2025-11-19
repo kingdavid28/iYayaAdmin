@@ -9,3 +9,4 @@ node_modules
 node_modules
 
 iyaya-backend/serviceAccountKey.json
+.vercel

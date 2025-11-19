@@ -8,6 +8,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export --platform web --output-dir dist",
+    "sync:vercel-env": "node scripts/sync-vercel-env.js",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -42,6 +43,7 @@
     "@typescript-eslint/eslint-plugin": "^8.16.0",
     "@typescript-eslint/parser": "^8.16.0",
     "eslint": "^9.17.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "dotenv": "^16.4.5"
   }
 }
