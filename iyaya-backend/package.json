@@ -1,7 +1,7 @@
 {
   "name": "iyaya-backend",
   "version": "1.0.0",
-  "main": "app.js",
+  "main": "serverSupabase.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/kingdavid28/iyayav0wind.git"
@@ -10,10 +10,12 @@
     "start": "node serverSupabase.js",
     "dev": "nodemon serverSupabase.js",
     "install-deps": "npm install",
-    "setup": "npm install && node serverSupabase.js"
+    "setup": "npm install && node serverSupabase.js",
+    "build": "echo \"Build script running (no build required)\""
   },
   "engines": {
-    "node": "22.x"
+    "node": "18.x",
+    "npm": "9.x"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.75.0",
@@ -24,21 +26,12 @@
     "crypto": "^1.0.1",
     "dotenv": "^16.0.0",
     "express": "^4.18.2",
-    "express-mongo-sanitize": "^2.2.0",
-    "express-rate-limit": "^6.7.0",
-    "express-validator": "^7.2.1",
-    "helmet": "^6.1.5",
-    "hpp": "^0.2.3",
-    "joi": "^18.0.1",
-    "jsonwebtoken": "^9.0.0",
-    "mongoose": "^7.0.0",
-    "multer": "^2.0.2",
-    "nodemailer": "^6.9.1",
-    "socket.io": "^4.8.1",
-    "winston": "^3.17.0",
-    "xss-clean": "^0.1.1"
+    "helmet": "^6.0.0",
+    "http-errors": "^2.0.0",
+    "morgan": "^1.10.0",
+    "winston": "^3.8.2"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22"
+    "nodemon": "^2.0.20"
   }
 }

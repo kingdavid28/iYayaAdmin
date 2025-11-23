@@ -1,13 +1,4 @@
 // ============================================
-// Supabase Server Configuration
-// ============================================
-require('dotenv').config({ path: './.env' });
-const config = require('./config/env');
-const { createServer } = require('http');
-const { app, server } = require('./appSupabase');
-const realtime = require('./services/realtime');
-
-// ============================================
 // Server Startup
 // ============================================
 const startServer = async () => {
@@ -22,57 +13,43 @@ const startServer = async () => {
     console.warn('[Realtime] Initialization skipped:', err?.message || err);
   }
 
-  server.listen(config.port, '0.0.0.0', () => {
+  // Use config.port which already handles process.env.PORT
+  const port = config.port;
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '0.0.0.0';
+
+  server.listen(port, host, () => {
     const os = require('os');
     const interfaces = os.networkInterfaces();
-    let networkIP = 'localhost';
+    let networkIP = host === '0.0.0.0' ? 'localhost' : host;
 
-    // Find the first non-internal IPv4 address
-    Object.keys(interfaces).forEach(name => {
-      interfaces[name].forEach(iface => {
-        if (iface.family === 'IPv4' && !iface.internal) {
-          networkIP = iface.address;
-        }
+    // Only try to detect network IP in development
+    if (config.isDevelopment) {
+      Object.keys(interfaces).forEach(name => {
+        interfaces[name].forEach(iface => {
+          if (iface.family === 'IPv4' && !iface.internal) {
+            networkIP = iface.address;
+          }
+        });
       });
-    });
+    }
 
     console.log(`
 ============================================
 🚀 Supabase Server running in ${config.env} mode
-🔗 Local: http://localhost:${config.port}
-🌐 Network: http://${networkIP}:${config.port}
-📱 Expo Go: Use http://${networkIP}:${config.port}
+🔗 Local: http://localhost:${port}
+${networkIP !== 'localhost' ? `🌐 Network: http://${networkIP}:${port}` : ''}
 📅 ${new Date().toLocaleString()}
-🗄️ Database: Supabase
+🗄️ Database: ${usingSupabase ? 'Supabase' : 'MongoDB'}
 ============================================
     `);
 
-    console.log('📋 Expo Go Setup:');
-    console.log(`1. Make sure your phone is on the same WiFi network`);
-    console.log(`2. Update frontend API config to use: ${networkIP}`);
-    console.log(`3. Run: npm run setup-network (in frontend)`);
-    console.log(`4. Restart Expo: npx expo start --clear`);
-    console.log('============================================\n');
+    if (config.isDevelopment) {
+      console.log('📋 Expo Go Setup:');
+      console.log(`1. Make sure your phone is on the same WiFi network`);
+      console.log(`2. Update frontend API config to use: ${networkIP}`);
+      console.log(`3. Run: npm run setup-network (in frontend)`);
+      console.log(`4. Restart Expo: npx expo start --clear`);
+      console.log('============================================\n');
+    }
   });
 };
-
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('⛔ Server closed successfully');
-    process.exit(0);
-  });
-});
-
-process.on('unhandledRejection', (err) => {
-  console.error('⚠️ Unhandled Rejection:', err);
-  process.exit(1);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('⚠️ Uncaught Exception:', err);
-  process.exit(1);
-});
-
-startServer();
