@@ -39,6 +39,11 @@
   "engines": {
     "node": "22.x"
   },
+  "resolutions": {
+    "@babel/traverse": "^7.23.2",
+    "@babel/generator": "^7.23.0",
+    "@babel/helper-validator-identifier": "^7.22.0"
+  },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.16.0",
     "@typescript-eslint/parser": "^8.16.0",

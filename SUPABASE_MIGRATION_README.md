@@ -290,3 +290,7 @@ fetchDashboardStats()
 https://github.com/kingdavid28/iYayaAdmin
 
 
+# Commit and push to trigger Vercel redeploy
+git add .
+git commit -m "Fix API URL for AWS Elastic Beanstalk HTTPS endpoint"
+git push origin main
