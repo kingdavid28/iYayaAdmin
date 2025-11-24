@@ -2,7 +2,7 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build:static",
   "outputDirectory": "dist",
-  "framework": null,
+  "framework": "other",
   "rewrites": [
     {
       "source": "/(.*)",
