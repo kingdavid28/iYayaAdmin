@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "eas build --platform web --output-dir dist",
+    "build": "npm run build:static",
     "sync:vercel-env": "node scripts/sync-vercel-env.js",
     "lint": "eslint ."
   },
