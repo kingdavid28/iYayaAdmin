@@ -1,6 +1,6 @@
 {
   "installCommand": "npm install",
-  "buildCommand": "METRO_CONFIG=/dev/null npx expo export --platform web --output-dir dist",
+  "buildCommand": "mv metro.config.js metro.config.js.bak 2>/dev/null || true && npx expo export --platform web --output-dir dist && mv metro.config.js.bak metro.config.js 2>/dev/null || true",
   "outputDirectory": "dist",
   "framework": null,
   "devCommand": "npx expo start --web",
