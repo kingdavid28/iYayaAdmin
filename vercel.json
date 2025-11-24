@@ -1,9 +1,8 @@
 {
   "installCommand": "npm install",
-  "buildCommand": "METRO_CONFIG= npx expo export --platform web --output-dir dist",
+  "buildCommand": "npm run build:static",
   "outputDirectory": "dist",
   "framework": null,
-  "devCommand": "npx expo start --web",
   "rewrites": [
     {
       "source": "/(.*)",
