@@ -1,6 +1,6 @@
 {
   "installCommand": "npm install",
-  "buildCommand": "rm -f metro.config.js && npx expo export --platform web --output-dir dist",
+  "buildCommand": "METRO_CONFIG= npx expo export --platform web --output-dir dist",
   "outputDirectory": "dist",
   "framework": null,
   "devCommand": "npx expo start --web",
