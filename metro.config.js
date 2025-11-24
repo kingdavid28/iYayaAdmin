@@ -1,8 +1,6 @@
-// Minimal Metro config for compatibility
-const config = {
-  resolver: {
-    assetExts: ['db', 'mp4', 'jpg', 'png', 'svg', 'ttf', 'otf'],
-  },
-};
+// Use Expo's default metro config
+const { getDefaultConfig } = require('expo/metro-config');
+
+const config = getDefaultConfig(__dirname);
 
 module.exports = config;

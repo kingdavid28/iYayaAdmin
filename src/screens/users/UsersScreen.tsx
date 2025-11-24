@@ -31,7 +31,8 @@ import {
 } from 'react-native-paper';
 import {Icon} from 'react-native-elements';
 import {useNavigation} from '@react-navigation/native';
-import profilePlaceholder from '../../../assets/profile-placeholder.png';
+// import profilePlaceholder from '../../../assets/profile-placeholder.png'; // Temporarily disabled due to corruption
+const profilePlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgdmlld0JveD0iMCAwIDEyOCAxMjgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4IiBmaWxsPSIjRjVGNUY1Ii8+CjxjaXJjbGUgY3g9IjY0IiBjeT0iNDgiIHI9IjIwIiBmaWxsPSIjQ0NDQ0NDIi8+CjxwYXRoIGQ9Ik0zMiA5NkM0MCA4OCA1NiA4MCA2NCA4MFM4OCA4OCA5NiA5NlM4OCAxMTIgNjQgMTEyUzMyIDEwNCAzMiA5NloiIGZpbGw9IiNDQ0NDQ0QiLz4KPC9zdmc+';
 import {Platform} from 'react-native';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {StackNavigationProp} from '@react-navigation/stack';
@@ -377,7 +378,7 @@ export default function UsersScreen() {
                   <View style={styles.userAvatarContainer}>
                     <Avatar.Image
                       size={60}
-                      source={user.profileImage ? { uri: user.profileImage } : profilePlaceholder}
+                      source={user.profileImage ? { uri: user.profileImage } : { uri: profilePlaceholder }}
                       style={styles.userAvatar}
                     />
                     <Badge

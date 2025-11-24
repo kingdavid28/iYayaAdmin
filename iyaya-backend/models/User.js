@@ -8,8 +8,7 @@ const UserSchema = new mongoose.Schema({
   firebaseUid: {
     type: String,
     unique: true,
-    sparse: true, // Allows null values for non-Firebase users
-    index: true
+    sparse: true // Allows null values for non-Firebase users
   },
   email: {
     type: String,
@@ -17,8 +16,7 @@ const UserSchema = new mongoose.Schema({
     unique: [true, 'Email already exists'],
     validate: [isEmail, 'Please enter a valid email'],
     lowercase: true,
-    trim: true,
-    index: true
+    trim: true
   },
   password: {
     type: String,
@@ -36,8 +34,7 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ['parent', 'caregiver'],
     default: 'parent',
-    required: true,
-    index: true
+    required: true
   },
   name: {
     type: String,
@@ -92,13 +89,11 @@ const UserSchema = new mongoose.Schema({
   // Social media provider IDs
   facebookId: {
     type: String,
-    sparse: true,
-    index: true
+    sparse: true
   },
   googleId: {
     type: String,
-    sparse: true,
-    index: true
+    sparse: true
   },
   // Optional address for client users
   address: {

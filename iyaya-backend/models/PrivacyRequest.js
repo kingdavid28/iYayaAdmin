@@ -3,13 +3,11 @@ const mongoose = require('mongoose');
 const privacyRequestSchema = new mongoose.Schema({
   requesterId: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   targetUserId: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   requestedFields: [{
     type: String,
@@ -23,8 +21,7 @@ const privacyRequestSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['pending', 'approved', 'denied', 'expired'],
-    default: 'pending',
-    index: true
+    default: 'pending'
   },
   sharedFields: [{
     type: String

@@ -4,8 +4,7 @@ const AuditLogSchema = new mongoose.Schema({
   adminId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    index: true
+    required: true
   },
   action: {
     type: String,
@@ -20,27 +19,23 @@ const AuditLogSchema = new mongoose.Schema({
       'LOGOUT',
       'PASSWORD_CHANGE',
       'EMAIL_VERIFICATION'
-    ],
-    index: true
+    ]
   },
   targetId: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   targetType: {
     type: String,
     enum: ['User', 'Booking', 'Job', 'Application'],
-    required: true,
-    index: true
+    required: true
   },
   details: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
   ip: {
-    type: String,
-    index: true
+    type: String
   },
   userAgent: {
     type: String

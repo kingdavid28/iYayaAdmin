@@ -4,8 +4,7 @@ const CaregiverSchema = new mongoose.Schema({
   caregiverId: {
     type: String,
     unique: true,
-    required: true,
-    index: true
+    required: true
   },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -317,7 +316,7 @@ CaregiverSchema.pre('save', async function(next) {
 });
 
 // Indexes for better query performance
-CaregiverSchema.index({ caregiverId: 1 }, { unique: true });
+// caregiverId index is automatically created by unique: true
 CaregiverSchema.index({ userId: 1 }, { unique: true });
 CaregiverSchema.index({ 'backgroundCheck.status': 1 });
 CaregiverSchema.index({ skills: 1 });

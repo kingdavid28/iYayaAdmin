@@ -4,8 +4,7 @@ const NotificationSchema = new mongoose.Schema({
   recipient: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    index: true
+    required: true
   },
   sender: {
     type: mongoose.Schema.Types.ObjectId,
@@ -14,8 +13,7 @@ const NotificationSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: ['message', 'booking', 'application', 'review', 'system'],
-    required: true,
-    index: true
+    required: true
   },
   title: {
     type: String,
@@ -27,8 +25,7 @@ const NotificationSchema = new mongoose.Schema({
   },
   read: {
     type: Boolean,
-    default: false,
-    index: true
+    default: false
   },
   readAt: {
     type: Date

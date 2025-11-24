@@ -4,8 +4,7 @@ const privacySchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   sharePhone: {
     type: Boolean,
@@ -56,6 +55,6 @@ privacySchema.pre('save', function(next) {
 });
 
 // Index for efficient queries
-privacySchema.index({ userId: 1 });
+// userId index is automatically created by unique: true
 
 module.exports = mongoose.model('Privacy', privacySchema);

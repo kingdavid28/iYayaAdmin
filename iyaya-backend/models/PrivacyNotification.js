@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const privacyNotificationSchema = new mongoose.Schema({
   userId: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   type: {
     type: String,
@@ -15,8 +14,7 @@ const privacyNotificationSchema = new mongoose.Schema({
       'data_access_granted',
       'data_access_revoked'
     ],
-    required: true,
-    index: true
+    required: true
   },
   message: {
     type: String,
@@ -29,8 +27,7 @@ const privacyNotificationSchema = new mongoose.Schema({
   },
   read: {
     type: Boolean,
-    default: false,
-    index: true
+    default: false
   },
   readAt: {
     type: Date
