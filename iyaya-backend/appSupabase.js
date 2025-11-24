@@ -20,6 +20,17 @@ const socketService = require('./services/socketService');
 const app = express();
 
 // ============================================
+// Health Check Endpoint
+// ============================================
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// ============================================
 // Security Middleware
 // ============================================
 const limiter = rateLimit({
