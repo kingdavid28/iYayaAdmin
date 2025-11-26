@@ -1,6 +1,6 @@
 {
   "outputDirectory": "dist",
-  "buildCommand": "echo 'Skipping build - using pre-built dist folder'",
+  "buildCommand": "rm -rf dist && npm run build:static",
   "rewrites": [
     {
       "source": "(.*)",
