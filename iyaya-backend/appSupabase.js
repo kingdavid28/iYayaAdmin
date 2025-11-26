@@ -175,6 +175,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Serve admin dashboard
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
+
 // Serve verification page
 app.get('/verify.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'verify.html'));

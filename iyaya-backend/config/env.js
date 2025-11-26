@@ -1,5 +1,4 @@
 require('dotenv').config();
-const chalk = require('chalk');
 
 // Check if we're using Supabase (primary) or MongoDB (legacy)
 const usingSupabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -24,9 +23,9 @@ const validateEnv = () => {
     requiredVariables.push('MONGODB_URI');
   } else {
     // If neither is configured, require at least one
-    console.error(chalk.red.bold('Missing database configuration:'));
-    console.error(chalk.yellow('- Either SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY for Supabase'));
-    console.error(chalk.yellow('- Or MONGODB_URI for MongoDB'));
+    console.error('Missing database configuration:');
+    console.error('- Either SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY for Supabase');
+    console.error('- Or MONGODB_URI for MongoDB');
     process.exit(1);
   }
 
@@ -72,7 +71,7 @@ const validateEnv = () => {
     process.exit(1);
   }
 
-  console.log(chalk.green.bold('✓ Environment variables validated'));
+  console.log('✓ Environment variables validated');
 };
 
 const parseCorsOrigins = (originString) => {

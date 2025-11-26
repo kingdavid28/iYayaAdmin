@@ -5,7 +5,7 @@ const express = require('express');
 const { app } = require('./appSupabase'); // Import your app configuration
 
 // Get port from environment variable or default to 8081
-const port = process.env.PORT || 8081;
+const port = process.env.PORT || 5000;
 
 // Health check endpoint (REQUIRED for Elastic Beanstalk)
 app.get('/health', (req, res) => {

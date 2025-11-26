@@ -1,1 +1,1 @@
-web: node serverSupabase.js
+web: node server.js

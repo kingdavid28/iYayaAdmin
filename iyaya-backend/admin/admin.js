@@ -17,7 +17,7 @@ async function fetchData(page = 1) {
     container.innerHTML = '<div class="loading">Loading providers...</div>';
     
     try {
-        const response = await fetch(`/api/v1/providers?page=${page}`);
+        const response = await fetch(`/api/admin/dashboard?page=${page}`);
         
         // Check for HTTP errors
         if (!response.ok) {
