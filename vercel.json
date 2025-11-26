@@ -1,5 +1,6 @@
 {
   "outputDirectory": "dist",
+  "buildCommand": "echo 'Skipping build - using pre-built dist folder'",
   "rewrites": [
     {
       "source": "(.*)",
