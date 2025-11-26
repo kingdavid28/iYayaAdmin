@@ -10,7 +10,11 @@
     "build": "expo build:web",
     "build:static": "npx expo export -p web --output-dir dist",
     "serve": "npx serve dist",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "validate:dev": "node -e \"process.env.NODE_ENV='development'; require('./validateEnv.js')\"",
+    "validate:prod": "node -e \"process.env.NODE_ENV='production'; require('./validateEnv.js')\"",
+    "build:prod": "node -e \"process.env.NODE_ENV='production'; require('child_process').execSync('expo build:web', {stdio: 'inherit'})\"",
+    "build:static:prod": "node -e \"process.env.NODE_ENV='production'; require('child_process').execSync('npx expo export -p web --output-dir dist', {stdio: 'inherit'})\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -48,8 +52,9 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.16.0",
     "@typescript-eslint/parser": "^8.16.0",
+    "cross-env": "^10.1.0",
+    "dotenv": "^16.4.5",
     "eslint": "^9.17.0",
-    "typescript": "~5.9.2",
-    "dotenv": "^16.4.5"
+    "typescript": "~5.9.2"
   }
 }
