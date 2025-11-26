@@ -1,6 +1,6 @@
 {
   "outputDirectory": "dist",
-  "buildCommand": "rm -rf dist && npm run build:static",
+  "buildCommand": "echo 'Using pre-built dist folder'",
   "rewrites": [
     {
       "source": "(.*)",
