@@ -8,7 +8,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo build:web",
-    "build:static": "npx expo export --platform web --output-dir dist",
+    "build:static": "npx expo export -p web --output-dir dist",
     "serve": "npx serve dist",
     "lint": "eslint ."
   },
