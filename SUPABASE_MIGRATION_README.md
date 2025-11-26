@@ -294,3 +294,10 @@ https://github.com/kingdavid28/iYayaAdmin
 git add .
 git commit -m "Fix API URL for AWS Elastic Beanstalk HTTPS endpoint"
 git push origin main
+
+ Serving!                                 │
+   │                                            │
+   │   - Local:    http://localhost:3000        │
+   │   - Network:  http://192.168.100.35:3000   │
+   │                                            │
+   │   Copied local address to clipboard! 
