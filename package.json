@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "validate:dev": "node -e \"process.env.NODE_ENV='development'; require('./validateEnv.js')\"",
     "validate:prod": "node -e \"process.env.NODE_ENV='production'; require('./validateEnv.js')\"",
-    "build:prod": "node -e \"process.env.NODE_ENV='production'; require('child_process').execSync('expo build:web', {stdio: 'inherit'})\"",
+    "build:prod": "node -e \"process.env.NODE_ENV='production'; require('child_process').execSync('npx expo export -p web --output-dir dist', {stdio: 'inherit'})\"",
     "build:static:prod": "node -e \"process.env.NODE_ENV='production'; require('child_process').execSync('npx expo export -p web --output-dir dist', {stdio: 'inherit'})\""
   },
   "dependencies": {
