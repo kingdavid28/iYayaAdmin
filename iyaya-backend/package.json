@@ -24,6 +24,7 @@
     "@supabase/supabase-js": "^2.75.0",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
+    "chalk": "^4.1.2",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -44,7 +45,7 @@
     "xss-clean": "^0.1.1"
   },
   "devDependencies": {
-    "chalk": "^5.6.2",
+    "@types/chalk": "^0.4.31",
     "eslint": "^8.56.0",
     "nodemon": "^3.1.0",
     "prettier": "^3.2.5"
