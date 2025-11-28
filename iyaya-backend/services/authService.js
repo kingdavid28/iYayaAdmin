@@ -1,30 +1,26 @@
 // services/authService.js
-const jwt = require('jsonwebtoken');
-const { jwtSecret, jwtExpiry } = require('../config/auth');
+const jwt = require("jsonwebtoken");
+const { jwtSecret, jwtExpiry } = require("../config/auth");
 
 exports.generateToken = (user) => {
   if (!user || !user._id) {
-    throw new Error('Invalid user object for token generation');
+    throw new Error("Invalid user object for token generation");
   }
 
   if (!jwtSecret || !jwtExpiry) {
-    throw new Error('Missing JWT configuration');
+    throw new Error("Missing JWT configuration");
   }
 
   const payload = {
     id: user._id,
-    role: user.role || 'user', // Default role if not specified
-    email: user.email
+    role: user.role || "user", // Default role if not specified
+    email: user.email,
   };
 
-  return jwt.sign(
-    payload,
-    jwtSecret,
-    { 
-      expiresIn: jwtExpiry,
-      algorithm: 'HS256'
-    }
-  );
+  return jwt.sign(payload, jwtSecret, {
+    expiresIn: jwtExpiry,
+    algorithm: "HS256",
+  });
 };
 
 // Add token verification function

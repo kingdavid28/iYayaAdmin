@@ -3,37 +3,37 @@
  * Updated to use Supabase messaging controller
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate } = require("../middleware/auth");
 const {
   getConversations,
   getMessages,
   sendMessage,
   startConversation,
   markAsRead,
-  getUnreadCount
-} = require('../controllers/messagingSupabase');
+  getUnreadCount,
+} = require("../controllers/messagingSupabase");
 
 // All messaging routes require authentication
 router.use(authenticate);
 
 // Get all conversations for the current user
-router.get('/conversations', getConversations);
+router.get("/conversations", getConversations);
 
 // Get messages for a specific conversation
-router.get('/conversation/:conversationId', getMessages);
+router.get("/conversation/:conversationId", getMessages);
 
 // Send a message
-router.post('/', sendMessage);
+router.post("/", sendMessage);
 
 // Start a new conversation
-router.post('/start', startConversation);
+router.post("/start", startConversation);
 
 // Mark messages as read
-router.post('/conversation/:conversationId/read', markAsRead);
+router.post("/conversation/:conversationId/read", markAsRead);
 
 // Get unread message count
-router.get('/unread-count', getUnreadCount);
+router.get("/unread-count", getUnreadCount);
 
 module.exports = router;

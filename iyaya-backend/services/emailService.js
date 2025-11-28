@@ -1,33 +1,33 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 // Create transporter
 const createTransporter = () => {
   if (!process.env.EMAIL_USERNAME || !process.env.EMAIL_PASSWORD) {
-    throw new Error('Email credentials not configured');
+    throw new Error("Email credentials not configured");
   }
-  
+
   return nodemailer.createTransport({
-    service: 'gmail',
+    service: "gmail",
     auth: {
       user: process.env.EMAIL_USERNAME,
-      pass: process.env.EMAIL_PASSWORD
-    }
+      pass: process.env.EMAIL_PASSWORD,
+    },
   });
 };
 
 // Send verification email
 exports.sendVerificationEmail = async (email, name, verificationToken) => {
   const transporter = createTransporter();
-  
+
   // Create both HTTP and deep link URLs
   const httpURL = `http://192.168.1.5:5000/api/auth/verify-email/${verificationToken}`;
   const expoGoURL = `exp://192.168.1.5:8081/--/verify-email?token=${verificationToken}`;
   const customSchemeURL = `iyaya://verify-email?token=${verificationToken}`;
-  
+
   const mailOptions = {
     from: process.env.EMAIL_FROM,
     to: email,
-    subject: 'Verify Your iYaya Account',
+    subject: "Verify Your iYaya Account",
     html: `
 <!DOCTYPE html>
 <html>
@@ -90,7 +90,7 @@ exports.sendVerificationEmail = async (email, name, verificationToken) => {
   </table>
 </body>
 </html>
-    `
+    `,
   };
 
   await transporter.sendMail(mailOptions);
@@ -99,12 +99,12 @@ exports.sendVerificationEmail = async (email, name, verificationToken) => {
 // Send password reset email
 exports.sendPasswordResetEmail = async (email, resetToken) => {
   const transporter = createTransporter();
-  const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:19006'}/reset-password/${resetToken}`;
+  const resetURL = `${process.env.FRONTEND_URL || "http://localhost:19006"}/reset-password/${resetToken}`;
 
   const mailOptions = {
     from: process.env.EMAIL_FROM,
     to: email,
-    subject: 'Reset Your iYaya Password',
+    subject: "Reset Your iYaya Password",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #db2777;">Password Reset Request</h2>
@@ -120,7 +120,7 @@ exports.sendPasswordResetEmail = async (email, resetToken) => {
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
         <p style="color: #666; font-size: 12px;">iYaya - Connecting Families with Trusted Caregivers</p>
       </div>
-    `
+    `,
   };
 
   await transporter.sendMail(mailOptions);
@@ -132,26 +132,26 @@ exports.sendStatusEmail = async ({ email, name, status, reason }) => {
 
   const statusMessages = {
     active: {
-      subject: 'Your iYaya Account Has Been Activated',
+      subject: "Your iYaya Account Has Been Activated",
       message: `Hi ${name}, your iYaya account has been activated. You can now access all features of the platform.`,
-      color: '#4caf50'
+      color: "#4caf50",
     },
     suspended: {
-      subject: 'Your iYaya Account Has Been Suspended',
-      message: `Hi ${name}, your iYaya account has been suspended${reason ? ` for the following reason: ${reason}` : '.'}. Please contact support if you believe this is an error.`,
-      color: '#ff9800'
+      subject: "Your iYaya Account Has Been Suspended",
+      message: `Hi ${name}, your iYaya account has been suspended${reason ? ` for the following reason: ${reason}` : "."}. Please contact support if you believe this is an error.`,
+      color: "#ff9800",
     },
     banned: {
-      subject: 'Your iYaya Account Has Been Deactivated',
-      message: `Hi ${name}, your iYaya account has been deactivated${reason ? ` for the following reason: ${reason}` : '.'}. If you believe this is an error, please contact support.`,
-      color: '#f44336'
-    }
+      subject: "Your iYaya Account Has Been Deactivated",
+      message: `Hi ${name}, your iYaya account has been deactivated${reason ? ` for the following reason: ${reason}` : "."}. If you believe this is an error, please contact support.`,
+      color: "#f44336",
+    },
   };
 
   const statusInfo = statusMessages[status] || {
-    subject: 'Your iYaya Account Status Has Changed',
-    message: `Hi ${name}, your iYaya account status has been updated to: ${status}${reason ? ` for the following reason: ${reason}` : '.'}`,
-    color: '#2196f3'
+    subject: "Your iYaya Account Status Has Changed",
+    message: `Hi ${name}, your iYaya account status has been updated to: ${status}${reason ? ` for the following reason: ${reason}` : "."}`,
+    color: "#2196f3",
   };
 
   const mailOptions = {
@@ -169,7 +169,7 @@ exports.sendStatusEmail = async ({ email, name, status, reason }) => {
 
           <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 0; color: #333; font-weight: bold;">Account Status: <span style="color: ${statusInfo.color}">${status.toUpperCase()}</span></p>
-            ${reason ? `<p style="margin: 10px 0 0 0; color: #666;"><strong>Reason:</strong> ${reason}</p>` : ''}
+            ${reason ? `<p style="margin: 10px 0 0 0; color: #666;"><strong>Reason:</strong> ${reason}</p>` : ""}
           </div>
 
           <p style="margin: 20px 0 0 0; color: #666; font-size: 14px;">If you have any questions about this status change, please contact our support team.</p>
@@ -178,7 +178,7 @@ exports.sendStatusEmail = async ({ email, name, status, reason }) => {
           <p style="color: #666; font-size: 12px; margin: 0;">iYaya - Connecting Families with Trusted Caregivers</p>
         </div>
       </div>
-    `
+    `,
   };
 
   await transporter.sendMail(mailOptions);

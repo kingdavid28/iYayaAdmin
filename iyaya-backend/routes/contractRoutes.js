@@ -1,14 +1,14 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const contractController = require('../controllers/contractController');
-const { authenticate, authorize, checkUserType } = require('../utils/auth');
+const contractController = require("../controllers/contractController");
+const { authenticate, authorize, checkUserType } = require("../utils/auth");
 const {
   createContractValidator,
   parentIdValidator,
   contractIdValidator,
-  statusUpdateValidator
-} = require('../validators/contractValidators');
-const rateLimit = require('express-rate-limit');
+  statusUpdateValidator,
+} = require("../validators/contractValidators");
+const rateLimit = require("express-rate-limit");
 
 // Rate limiting for contract endpoints
 const contractLimiter = rateLimit({
@@ -16,11 +16,11 @@ const contractLimiter = rateLimit({
   max: 100,
   message: {
     success: false,
-    error: 'Too many requests, please try again later',
-    statusCode: 429
+    error: "Too many requests, please try again later",
+    statusCode: 429,
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
 });
 
 /**
@@ -116,12 +116,12 @@ const contractLimiter = rateLimit({
  *         description: Forbidden (client access only)
  */
 router.post(
-  '/',
+  "/",
   authenticate,
-  checkUserType('parent'),
+  checkUserType("parent"),
   contractLimiter,
   createContractValidator,
-  contractController.createContract
+  contractController.createContract,
 );
 
 /**
@@ -160,11 +160,11 @@ router.post(
  *         description: Forbidden (can only view own contracts)
  */
 router.get(
-  '/parent/:parentId',
+  "/parent/:parentId",
   authenticate,
   contractLimiter,
   parentIdValidator,
-  contractController.getParentContracts
+  contractController.getParentContracts,
 );
 
 /**
@@ -197,11 +197,11 @@ router.get(
  *         description: Forbidden (caregiver access only)
  */
 router.get(
-  '/caregiver/:id',
+  "/caregiver/:id",
   authenticate,
-  checkUserType('caregiver'),
+  checkUserType("caregiver"),
   contractLimiter,
-  contractController.getCaregiverContracts
+  contractController.getCaregiverContracts,
 );
 
 /**
@@ -242,12 +242,12 @@ router.get(
  *         description: Contract not found
  */
 router.put(
-  '/:id/status',
+  "/:id/status",
   authenticate,
   contractLimiter,
   contractIdValidator,
   statusUpdateValidator,
-  contractController.updateContractStatus
+  contractController.updateContractStatus,
 );
 
 module.exports = router;

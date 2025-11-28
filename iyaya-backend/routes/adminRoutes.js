@@ -64,10 +64,7 @@ router.patch(
   "/payments/:paymentId/status",
   adminController.updatePaymentStatus,
 );
-router.post(
-  "/payments/:paymentId/refund",
-  adminController.refundPayment,
-);
+router.post("/payments/:paymentId/refund", adminController.refundPayment);
 
 // Jobs management
 router.get("/jobs", adminController.listJobs);

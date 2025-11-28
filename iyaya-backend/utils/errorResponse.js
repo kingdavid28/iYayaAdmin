@@ -1,5 +1,5 @@
-const { NODE_ENV } = require('../config');
-const logger = require('../utils/logger');
+const { NODE_ENV } = require("../config");
+const logger = require("../utils/logger");
 
 class ErrorResponse extends Error {
   /**
@@ -12,7 +12,7 @@ class ErrorResponse extends Error {
    */
   constructor(message, statusCode, code, validationErrors = {}, metadata = {}) {
     super(message);
-    
+
     // Core error properties
     this.statusCode = statusCode || 500;
     // Alias for middleware that expects `err.status`
@@ -36,7 +36,7 @@ class ErrorResponse extends Error {
    * Generate standardized error code
    */
   generateErrorCode() {
-    const prefix = this.statusCode < 500 ? 'CLIENT' : 'SERVER';
+    const prefix = this.statusCode < 500 ? "CLIENT" : "SERVER";
     return `${prefix}-${this.statusCode}-${Math.floor(Math.random() * 1000)}`;
   }
 
@@ -51,7 +51,7 @@ class ErrorResponse extends Error {
       code: this.code,
       validationErrors: this.validationErrors,
       metadata: this.metadata,
-      ...(NODE_ENV === 'development' && { stack: this.stack })
+      ...(NODE_ENV === "development" && { stack: this.stack }),
     };
 
     logger.error(logEntry);
@@ -66,17 +66,17 @@ class ErrorResponse extends Error {
       message: this.message,
       statusCode: this.statusCode,
       code: this.code,
-      ...(Object.keys(this.validationErrors).length > 0 && { 
-        errors: this.validationErrors 
-      })
+      ...(Object.keys(this.validationErrors).length > 0 && {
+        errors: this.validationErrors,
+      }),
     };
 
     // Only include debug info in development
-    if (NODE_ENV === 'development') {
+    if (NODE_ENV === "development") {
       return {
         ...baseResponse,
         stack: this.stack,
-        metadata: this.metadata
+        metadata: this.metadata,
       };
     }
 
@@ -84,33 +84,38 @@ class ErrorResponse extends Error {
   }
 
   /* ========== Static Factory Methods ========== */
-  
-  static badRequest(message = 'Bad Request', validationErrors = {}) {
-    return new ErrorResponse(message, 400, 'BAD_REQUEST', validationErrors);
+
+  static badRequest(message = "Bad Request", validationErrors = {}) {
+    return new ErrorResponse(message, 400, "BAD_REQUEST", validationErrors);
   }
 
-  static unauthorized(message = 'Not Authorized') {
-    return new ErrorResponse(message, 401, 'UNAUTHORIZED');
+  static unauthorized(message = "Not Authorized") {
+    return new ErrorResponse(message, 401, "UNAUTHORIZED");
   }
 
-  static forbidden(message = 'Forbidden') {
-    return new ErrorResponse(message, 403, 'FORBIDDEN');
+  static forbidden(message = "Forbidden") {
+    return new ErrorResponse(message, 403, "FORBIDDEN");
   }
 
-  static notFound(message = 'Resource Not Found') {
-    return new ErrorResponse(message, 404, 'NOT_FOUND');
+  static notFound(message = "Resource Not Found") {
+    return new ErrorResponse(message, 404, "NOT_FOUND");
   }
 
-  static conflict(message = 'Conflict Occurred') {
-    return new ErrorResponse(message, 409, 'CONFLICT');
+  static conflict(message = "Conflict Occurred") {
+    return new ErrorResponse(message, 409, "CONFLICT");
   }
 
-  static validationError(message = 'Validation Failed', validationErrors = {}) {
-    return new ErrorResponse(message, 422, 'VALIDATION_FAILED', validationErrors);
+  static validationError(message = "Validation Failed", validationErrors = {}) {
+    return new ErrorResponse(
+      message,
+      422,
+      "VALIDATION_FAILED",
+      validationErrors,
+    );
   }
 
-  static internalError(message = 'Internal Server Error') {
-    return new ErrorResponse(message, 500, 'INTERNAL_ERROR');
+  static internalError(message = "Internal Server Error") {
+    return new ErrorResponse(message, 500, "INTERNAL_ERROR");
   }
 
   static fromError(error, metadata = {}) {
@@ -121,9 +126,9 @@ class ErrorResponse extends Error {
     return new ErrorResponse(
       error.message,
       error.statusCode || 500,
-      error.code || 'UNKNOWN_ERROR',
+      error.code || "UNKNOWN_ERROR",
       error.validationErrors || {},
-      metadata
+      metadata,
     );
   }
 }

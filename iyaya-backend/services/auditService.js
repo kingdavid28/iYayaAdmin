@@ -2,7 +2,7 @@
 // Legacy wrapper retained for backwards compatibility. Routes now use
 // the Supabase-backed AuditLogService exposed from `supabaseService`.
 
-const { AuditLogService } = require('../services/supabaseService');
+const { AuditLogService } = require("../services/supabaseService");
 
 function logConsole(action, payload = {}) {
   const timestamp = new Date().toISOString();
@@ -17,7 +17,7 @@ async function logAction({
   metadata = {},
   ipAddress = null,
   userAgent = null,
-  status = 'SUCCESS'
+  status = "SUCCESS",
 }) {
   try {
     logConsole(action, {
@@ -25,9 +25,9 @@ async function logAction({
       entity,
       entityId,
       status,
-      metadata
+      metadata,
     });
-    console.log('[AUDIT] adminId being logged:', userId);
+    console.log("[AUDIT] adminId being logged:", userId);
     return await AuditLogService.create({
       admin_id: userId,
       action,
@@ -36,15 +36,15 @@ async function logAction({
       metadata,
       ip_address: ipAddress,
       user_agent: userAgent,
-      status
+      status,
     });
   } catch (error) {
-    console.error('[AUDIT_ERROR] Failed to log action:', {
+    console.error("[AUDIT_ERROR] Failed to log action:", {
       error: error.message,
       action,
       userId,
       entity,
-      entityId
+      entityId,
     });
     return null;
   }
@@ -54,9 +54,9 @@ async function logSecurityEvent(eventType, metadata = {}, userId = null) {
   return logAction({
     userId,
     action: `SECURITY_${eventType}`,
-    entity: 'SYSTEM',
+    entity: "SYSTEM",
     metadata,
-    status: metadata.error ? 'FAILED' : 'SUCCESS'
+    status: metadata.error ? "FAILED" : "SUCCESS",
   });
 }
 
@@ -64,15 +64,15 @@ async function logActivity(action, metadata = {}) {
   return logAction({
     userId: metadata.userId || metadata.adminId || null,
     action,
-    entity: metadata.entity || 'SYSTEM',
+    entity: metadata.entity || "SYSTEM",
     entityId: metadata.entityId || metadata.targetId || null,
     metadata,
-    status: metadata.error ? 'FAILED' : 'SUCCESS'
+    status: metadata.error ? "FAILED" : "SUCCESS",
   });
 }
 
 module.exports = {
   logAction,
   logSecurityEvent,
-  logActivity
+  logActivity,
 };

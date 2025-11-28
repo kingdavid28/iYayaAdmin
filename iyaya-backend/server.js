@@ -1,2 +1,2 @@
 // AWS EB compatibility - redirect to main server file
-require('./serverSupabase.js');
+require("./serverSupabase.js");

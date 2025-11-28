@@ -1,6 +1,6 @@
-const Rating = require('../models/Rating');
-const Booking = require('../models/Booking');
-const { authenticate } = require('../middleware/auth');
+const Rating = require("../models/Rating");
+const Booking = require("../models/Booking");
+const { authenticate } = require("../middleware/auth");
 
 // Rate a caregiver
 const rateCaregiver = async (req, res) => {
@@ -11,13 +11,13 @@ const rateCaregiver = async (req, res) => {
     // Verify the booking exists and belongs to the user
     const booking = await Booking.findOne({
       _id: bookingId,
-      parent: userId
+      parent: userId,
     });
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        error: 'Booking not found'
+        error: "Booking not found",
       });
     }
 
@@ -26,13 +26,13 @@ const rateCaregiver = async (req, res) => {
       booking: bookingId,
       rater: userId,
       ratee: caregiverId,
-      type: 'caregiver'
+      type: "caregiver",
     });
 
     if (existingRating) {
       return res.status(400).json({
         success: false,
-        error: 'You have already rated this caregiver for this booking'
+        error: "You have already rated this caregiver for this booking",
       });
     }
 
@@ -42,20 +42,20 @@ const rateCaregiver = async (req, res) => {
       ratee: caregiverId,
       rating,
       review,
-      type: 'caregiver'
+      type: "caregiver",
     });
 
     await newRating.save();
 
     res.status(201).json({
       success: true,
-      data: newRating
+      data: newRating,
     });
   } catch (error) {
-    console.error('Rate caregiver error:', error);
+    console.error("Rate caregiver error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to rate caregiver'
+      error: "Failed to rate caregiver",
     });
   }
 };
@@ -69,13 +69,13 @@ const rateParent = async (req, res) => {
     // Verify the booking exists and belongs to the user
     const booking = await Booking.findOne({
       _id: bookingId,
-      caregiver: userId
+      caregiver: userId,
     });
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        error: 'Booking not found'
+        error: "Booking not found",
       });
     }
 
@@ -84,13 +84,13 @@ const rateParent = async (req, res) => {
       booking: bookingId,
       rater: userId,
       ratee: parentId,
-      type: 'parent'
+      type: "parent",
     });
 
     if (existingRating) {
       return res.status(400).json({
         success: false,
-        error: 'You have already rated this parent for this booking'
+        error: "You have already rated this parent for this booking",
       });
     }
 
@@ -100,20 +100,20 @@ const rateParent = async (req, res) => {
       ratee: parentId,
       rating,
       review,
-      type: 'parent'
+      type: "parent",
     });
 
     await newRating.save();
 
     res.status(201).json({
       success: true,
-      data: newRating
+      data: newRating,
     });
   } catch (error) {
-    console.error('Rate parent error:', error);
+    console.error("Rate parent error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to rate parent'
+      error: "Failed to rate parent",
     });
   }
 };
@@ -126,17 +126,17 @@ const getCaregiverRatings = async (req, res) => {
 
     const ratings = await Rating.find({
       ratee: caregiverId,
-      type: 'caregiver'
+      type: "caregiver",
     })
-    .populate('rater', 'name email')
-    .populate('booking', 'id')
-    .sort({ createdAt: -1 })
-    .limit(limit * 1)
-    .skip((page - 1) * limit);
+      .populate("rater", "name email")
+      .populate("booking", "id")
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
 
     const total = await Rating.countDocuments({
       ratee: caregiverId,
-      type: 'caregiver'
+      type: "caregiver",
     });
 
     res.status(200).json({
@@ -146,14 +146,14 @@ const getCaregiverRatings = async (req, res) => {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Get caregiver ratings error:', error);
+    console.error("Get caregiver ratings error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch caregiver ratings'
+      error: "Failed to fetch caregiver ratings",
     });
   }
 };
@@ -166,17 +166,17 @@ const getParentRatings = async (req, res) => {
 
     const ratings = await Rating.find({
       ratee: parentId,
-      type: 'parent'
+      type: "parent",
     })
-    .populate('rater', 'name email')
-    .populate('booking', 'id')
-    .sort({ createdAt: -1 })
-    .limit(limit * 1)
-    .skip((page - 1) * limit);
+      .populate("rater", "name email")
+      .populate("booking", "id")
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
 
     const total = await Rating.countDocuments({
       ratee: parentId,
-      type: 'parent'
+      type: "parent",
     });
 
     res.status(200).json({
@@ -186,14 +186,14 @@ const getParentRatings = async (req, res) => {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Get parent ratings error:', error);
+    console.error("Get parent ratings error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch parent ratings'
+      error: "Failed to fetch parent ratings",
     });
   }
 };
@@ -202,19 +202,20 @@ const getParentRatings = async (req, res) => {
 const getRatingSummary = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { role = 'caregiver' } = req.query;
+    const { role = "caregiver" } = req.query;
 
-    const type = role === 'caregiver' ? 'caregiver' : 'parent';
+    const type = role === "caregiver" ? "caregiver" : "parent";
 
     const ratings = await Rating.find({
       ratee: userId,
-      type
+      type,
     });
 
     const totalRatings = ratings.length;
-    const averageRating = totalRatings > 0
-      ? ratings.reduce((sum, rating) => sum + rating.rating, 0) / totalRatings
-      : 0;
+    const averageRating =
+      totalRatings > 0
+        ? ratings.reduce((sum, rating) => sum + rating.rating, 0) / totalRatings
+        : 0;
 
     res.status(200).json({
       success: true,
@@ -223,14 +224,14 @@ const getRatingSummary = async (req, res) => {
         role,
         totalRatings,
         averageRating: Math.round(averageRating * 10) / 10,
-        ratings: ratings.slice(0, 5) // Return last 5 ratings
-      }
+        ratings: ratings.slice(0, 5), // Return last 5 ratings
+      },
     });
   } catch (error) {
-    console.error('Get rating summary error:', error);
+    console.error("Get rating summary error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch rating summary'
+      error: "Failed to fetch rating summary",
     });
   }
 };
@@ -240,5 +241,5 @@ module.exports = {
   rateParent,
   getCaregiverRatings,
   getParentRatings,
-  getRatingSummary
+  getRatingSummary,
 };

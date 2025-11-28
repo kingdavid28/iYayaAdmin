@@ -4,60 +4,64 @@ let ioInstance = null;
 
 function init(server) {
   try {
-    const { Server } = require('socket.io');
-    const cors = require('cors');
+    const { Server } = require("socket.io");
+    const cors = require("cors");
     ioInstance = new Server(server, {
       cors: {
         origin: (origin, cb) => {
           // Allow local Expo/web by default; tighten in production
           const allowed = [
-            'http://localhost:8081',
-            'http://localhost:3000',
-            'http://localhost:5000',
+            "http://localhost:8081",
+            "http://localhost:3000",
+            "http://localhost:5000",
           ];
           if (!origin || allowed.includes(origin)) return cb(null, true);
-          cb(new Error('Not allowed by CORS'));
+          cb(new Error("Not allowed by CORS"));
         },
         credentials: true,
       },
-      transports: ['websocket', 'polling'],
+      transports: ["websocket", "polling"],
     });
 
-    ioInstance.on('connection', (socket) => {
+    ioInstance.on("connection", (socket) => {
       // Authenticate via token if provided (basic example)
       const { token, userId } = socket.handshake.auth || {};
       socket.data.userId = userId || null;
 
-      socket.on('typing:start', (payload) => {
+      socket.on("typing:start", (payload) => {
         const { conversationId } = payload || {};
         if (!conversationId) return;
-        socket.to(conversationId).emit('typing:start', { userId: socket.data.userId, conversationId });
+        socket
+          .to(conversationId)
+          .emit("typing:start", { userId: socket.data.userId, conversationId });
       });
 
-      socket.on('typing:stop', (payload) => {
+      socket.on("typing:stop", (payload) => {
         const { conversationId } = payload || {};
         if (!conversationId) return;
-        socket.to(conversationId).emit('typing:stop', { userId: socket.data.userId, conversationId });
+        socket
+          .to(conversationId)
+          .emit("typing:stop", { userId: socket.data.userId, conversationId });
       });
 
-      socket.on('conversation:join', ({ conversationId }) => {
+      socket.on("conversation:join", ({ conversationId }) => {
         if (!conversationId) return;
         socket.join(conversationId);
       });
 
-      socket.on('conversation:leave', ({ conversationId }) => {
+      socket.on("conversation:leave", ({ conversationId }) => {
         if (!conversationId) return;
         socket.leave(conversationId);
       });
 
-      socket.on('disconnect', () => {});
+      socket.on("disconnect", () => {});
     });
 
-    console.log('[Realtime] Socket.IO initialized');
+    console.log("[Realtime] Socket.IO initialized");
     return ioInstance;
   } catch (err) {
     // socket.io not installed; skip
-    console.warn('[Realtime] Socket.IO not available, skipping realtime layer');
+    console.warn("[Realtime] Socket.IO not available, skipping realtime layer");
     return null;
   }
 }
@@ -74,7 +78,7 @@ function emitToConversation(conversationId, event, payload) {
 
 // Convenience: emit new message event
 function emitNewMessage(conversationId, message) {
-  emitToConversation(conversationId, 'message:new', { message });
+  emitToConversation(conversationId, "message:new", { message });
 }
 
 module.exports = { init, io, emitToConversation, emitNewMessage };

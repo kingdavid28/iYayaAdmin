@@ -1,8 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth');
-const { body, param } = require('express-validator');
-const applications = require('../controllers/applicationController');
+const { authenticate, authorize } = require("../middleware/auth");
+const { body, param } = require("express-validator");
+const applications = require("../controllers/applicationController");
 
 // Enable authentication for all routes
 router.use(authenticate);
@@ -16,37 +16,46 @@ router.use(authenticate);
 // ];
 
 const validateStatusUpdate = [
-  param('id').isMongoId().withMessage('Valid application ID is required'),
-  body('status').isIn(['pending', 'accepted', 'rejected', 'shortlisted']).withMessage('Invalid status'),
-  body('feedback').optional().isLength({ max: 500 }).withMessage('Feedback must be less than 500 characters')
+  param("id").isMongoId().withMessage("Valid application ID is required"),
+  body("status")
+    .isIn(["pending", "accepted", "rejected", "shortlisted"])
+    .withMessage("Invalid status"),
+  body("feedback")
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage("Feedback must be less than 500 characters"),
 ];
 
 // Routes
 // POST /api/applications - caregiver applies to a job (simplified for demo)
-router.post('/', applications.applyToJob);
+router.post("/", applications.applyToJob);
 
 // GET /api/applications/my-applications - caregiver's applications
-router.get('/my-applications', applications.getMyApplications);
+router.get("/my-applications", applications.getMyApplications);
 
 // GET /api/applications/my - caregiver's applications (legacy)
-router.get('/my', applications.getMyApplications);
+router.get("/my", applications.getMyApplications);
 
 // GET /api/applications/debug - debug caregiver info
-router.get('/debug', applications.debugCaregiverInfo);
+router.get("/debug", applications.debugCaregiverInfo);
 
 // GET /api/applications/:id - get single application
-router.get('/:id', applications.getApplicationById);
+router.get("/:id", applications.getApplicationById);
 
 // PATCH /api/applications/:id/status - parent updates status
-router.patch('/:id/status', validateStatusUpdate, applications.updateApplicationStatus);
+router.patch(
+  "/:id/status",
+  validateStatusUpdate,
+  applications.updateApplicationStatus,
+);
 
 // DELETE /api/applications/:id - caregiver withdraws application
-router.delete('/:id', applications.withdrawApplication);
+router.delete("/:id", applications.withdrawApplication);
 
 // GET /api/applications/job/:jobId - get applications for a job (parent)
-router.get('/job/:jobId', applications.getJobApplications);
+router.get("/job/:jobId", applications.getJobApplications);
 
 // Legacy route for backward compatibility
-router.patch('/:id', validateStatusUpdate, applications.updateStatus);
+router.patch("/:id", validateStatusUpdate, applications.updateStatus);
 
 module.exports = router;

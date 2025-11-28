@@ -3,23 +3,30 @@
  * Replaces MongoDB/Mongoose operations with Supabase
  */
 
-const { ConversationService, MessageService } = require('../services/supabaseService');
+const {
+  ConversationService,
+  MessageService,
+} = require("../services/supabaseService");
 
 // Get all conversations for the current user
 const getConversations = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const conversations = await ConversationService.getUserConversations(userId);
+    const conversations =
+      await ConversationService.getUserConversations(userId);
 
     // Transform conversations to match expected format
     const transformedConversations = await Promise.all(
       conversations.map(async (conv) => {
         // Get the other participant
-        const otherParticipantId = conv.participant_1 === userId ? conv.participant_2 : conv.participant_1;
+        const otherParticipantId =
+          conv.participant_1 === userId
+            ? conv.participant_2
+            : conv.participant_1;
 
         // Get other participant details
-        const { UserService } = require('../services/supabaseService');
+        const { UserService } = require("../services/supabaseService");
         const otherUser = await UserService.findById(otherParticipantId);
 
         // Get last message
@@ -29,29 +36,31 @@ const getConversations = async (req, res) => {
         return {
           id: conv.id,
           participants: [
-            { id: userId, name: 'You' },
-            { id: otherParticipantId, name: otherUser?.name || 'Unknown User' }
+            { id: userId, name: "You" },
+            { id: otherParticipantId, name: otherUser?.name || "Unknown User" },
           ],
-          lastMessage: lastMessage ? {
-            content: lastMessage.content,
-            sender: lastMessage.sender_id,
-            timestamp: lastMessage.created_at
-          } : null,
+          lastMessage: lastMessage
+            ? {
+                content: lastMessage.content,
+                sender: lastMessage.sender_id,
+                timestamp: lastMessage.created_at,
+              }
+            : null,
           updatedAt: conv.updated_at,
-          createdAt: conv.created_at
+          createdAt: conv.created_at,
         };
-      })
+      }),
     );
 
     res.status(200).json({
       success: true,
-      data: transformedConversations
+      data: transformedConversations,
     });
   } catch (error) {
-    console.error('Get conversations error:', error);
+    console.error("Get conversations error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch conversations'
+      error: "Failed to fetch conversations",
     });
   }
 };
@@ -69,27 +78,30 @@ const getMessages = async (req, res) => {
     if (!conversation) {
       return res.status(404).json({
         success: false,
-        error: 'Conversation not found'
+        error: "Conversation not found",
       });
     }
 
     // Check if user is participant
-    if (conversation.participant_1 !== userId && conversation.participant_2 !== userId) {
+    if (
+      conversation.participant_1 !== userId &&
+      conversation.participant_2 !== userId
+    ) {
       return res.status(403).json({
         success: false,
-        error: 'Access denied to this conversation'
+        error: "Access denied to this conversation",
       });
     }
 
     const messages = await MessageService.getByConversation(conversationId);
 
     // Transform messages to match expected format
-    const transformedMessages = messages.map(msg => ({
+    const transformedMessages = messages.map((msg) => ({
       id: msg.id,
       conversationId: msg.conversation_id,
       sender: {
         id: msg.sender_id,
-        name: 'User' // TODO: Get actual user name
+        name: "User", // TODO: Get actual user name
       },
       recipient: msg.recipient_id,
       content: msg.content,
@@ -97,7 +109,7 @@ const getMessages = async (req, res) => {
       read: !!msg.read_at,
       readAt: msg.read_at,
       createdAt: msg.created_at,
-      updatedAt: msg.updated_at
+      updatedAt: msg.updated_at,
     }));
 
     res.status(200).json({
@@ -105,14 +117,14 @@ const getMessages = async (req, res) => {
       data: {
         messages: transformedMessages.reverse(),
         page: parseInt(page),
-        limit: parseInt(limit)
-      }
+        limit: parseInt(limit),
+      },
     });
   } catch (error) {
-    console.error('Get messages error:', error);
+    console.error("Get messages error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch messages'
+      error: "Failed to fetch messages",
     });
   }
 };
@@ -120,21 +132,28 @@ const getMessages = async (req, res) => {
 // Send a message
 const sendMessage = async (req, res) => {
   try {
-    const { recipientId, content, messageType = 'text' } = req.body;
+    const { recipientId, content, messageType = "text" } = req.body;
     const senderId = req.user.id;
 
     if (!recipientId || !content) {
       return res.status(400).json({
         success: false,
-        error: 'Recipient ID and content are required'
+        error: "Recipient ID and content are required",
       });
     }
 
     // Find or create conversation
-    let conversation = await ConversationService.findByParticipants(senderId, recipientId);
+    let conversation = await ConversationService.findByParticipants(
+      senderId,
+      recipientId,
+    );
 
     if (!conversation) {
-      conversation = await ConversationService.create(senderId, recipientId, 'admin_user');
+      conversation = await ConversationService.create(
+        senderId,
+        recipientId,
+        "admin_user",
+      );
     }
 
     // Create message
@@ -145,13 +164,16 @@ const sendMessage = async (req, res) => {
       content,
       message_type: messageType,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
     const message = await MessageService.create(messageData);
 
     // Update conversation's last message timestamp
-    await ConversationService.updateLastMessage(conversation.id, new Date().toISOString());
+    await ConversationService.updateLastMessage(
+      conversation.id,
+      new Date().toISOString(),
+    );
 
     // Transform message for response
     const transformedMessage = {
@@ -159,25 +181,25 @@ const sendMessage = async (req, res) => {
       conversationId: message.conversation_id,
       sender: {
         id: message.sender_id,
-        name: 'You'
+        name: "You",
       },
       recipient: message.recipient_id,
       content: message.content,
       messageType: message.message_type,
       read: false,
       createdAt: message.created_at,
-      updatedAt: message.updated_at
+      updatedAt: message.updated_at,
     };
 
     res.status(201).json({
       success: true,
-      data: transformedMessage
+      data: transformedMessage,
     });
   } catch (error) {
-    console.error('Send message error:', error);
+    console.error("Send message error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to send message'
+      error: "Failed to send message",
     });
   }
 };
@@ -191,22 +213,29 @@ const startConversation = async (req, res) => {
     if (!recipientId || !initialMessage) {
       return res.status(400).json({
         success: false,
-        error: 'Recipient ID and initial message are required'
+        error: "Recipient ID and initial message are required",
       });
     }
 
     // Check if conversation already exists
-    const existingConversation = await ConversationService.findByParticipants(senderId, recipientId);
+    const existingConversation = await ConversationService.findByParticipants(
+      senderId,
+      recipientId,
+    );
 
     if (existingConversation) {
       return res.status(400).json({
         success: false,
-        error: 'Conversation already exists'
+        error: "Conversation already exists",
       });
     }
 
     // Create new conversation
-    const conversation = await ConversationService.create(senderId, recipientId, 'admin_user');
+    const conversation = await ConversationService.create(
+      senderId,
+      recipientId,
+      "admin_user",
+    );
 
     // Create initial message
     const messageData = {
@@ -214,15 +243,18 @@ const startConversation = async (req, res) => {
       sender_id: senderId,
       recipient_id: recipientId,
       content: initialMessage,
-      message_type: 'text',
+      message_type: "text",
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
     const message = await MessageService.create(messageData);
 
     // Update conversation's last message timestamp
-    await ConversationService.updateLastMessage(conversation.id, new Date().toISOString());
+    await ConversationService.updateLastMessage(
+      conversation.id,
+      new Date().toISOString(),
+    );
 
     res.status(201).json({
       success: true,
@@ -231,24 +263,24 @@ const startConversation = async (req, res) => {
           id: conversation.id,
           participants: [senderId, recipientId],
           createdAt: conversation.created_at,
-          updatedAt: conversation.updated_at
+          updatedAt: conversation.updated_at,
         },
         message: {
           id: message.id,
           conversationId: message.conversation_id,
-          sender: { id: message.sender_id, name: 'You' },
+          sender: { id: message.sender_id, name: "You" },
           recipient: message.recipient_id,
           content: message.content,
           messageType: message.message_type,
-          createdAt: message.created_at
-        }
-      }
+          createdAt: message.created_at,
+        },
+      },
     });
   } catch (error) {
-    console.error('Start conversation error:', error);
+    console.error("Start conversation error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to start conversation'
+      error: "Failed to start conversation",
     });
   }
 };
@@ -265,22 +297,25 @@ const markAsRead = async (req, res) => {
     if (!conversation) {
       return res.status(404).json({
         success: false,
-        error: 'Conversation not found'
+        error: "Conversation not found",
       });
     }
 
     // Check if user is participant
-    if (conversation.participant_1 !== userId && conversation.participant_2 !== userId) {
+    if (
+      conversation.participant_1 !== userId &&
+      conversation.participant_2 !== userId
+    ) {
       return res.status(403).json({
         success: false,
-        error: 'Access denied to this conversation'
+        error: "Access denied to this conversation",
       });
     }
 
     // Get unread messages for this user in this conversation
     const messages = await MessageService.getByConversation(conversationId);
-    const unreadMessages = messages.filter(msg =>
-      msg.recipient_id === userId && !msg.read_at
+    const unreadMessages = messages.filter(
+      (msg) => msg.recipient_id === userId && !msg.read_at,
     );
 
     // Mark each unread message as read
@@ -291,14 +326,14 @@ const markAsRead = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Messages marked as read',
-      markedCount: unreadMessages.length
+      message: "Messages marked as read",
+      markedCount: unreadMessages.length,
     });
   } catch (error) {
-    console.error('Mark as read error:', error);
+    console.error("Mark as read error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to mark messages as read'
+      error: "Failed to mark messages as read",
     });
   }
 };
@@ -313,14 +348,14 @@ const getUnreadCount = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        unreadCount
-      }
+        unreadCount,
+      },
     });
   } catch (error) {
-    console.error('Get unread count error:', error);
+    console.error("Get unread count error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to get unread count'
+      error: "Failed to get unread count",
     });
   }
 };
@@ -331,5 +366,5 @@ module.exports = {
   sendMessage,
   startConversation,
   markAsRead,
-  getUnreadCount
+  getUnreadCount,
 };

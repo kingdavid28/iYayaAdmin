@@ -1,19 +1,19 @@
-const { validationResult } = require('express-validator');
-const Privacy = require('../models/Privacy');
-const PrivacyRequest = require('../models/PrivacyRequest');
-const PrivacyNotification = require('../models/PrivacyNotification');
-const User = require('../models/User');
-const { process: processError } = require('../utils/errorHandler');
-const logger = require('../utils/logger');
+const { validationResult } = require("express-validator");
+const Privacy = require("../models/Privacy");
+const PrivacyRequest = require("../models/PrivacyRequest");
+const PrivacyNotification = require("../models/PrivacyNotification");
+const User = require("../models/User");
+const { process: processError } = require("../utils/errorHandler");
+const logger = require("../utils/logger");
 
 class PrivacyController {
   // Get user's privacy settings
   async getPrivacySettings(req, res) {
     try {
       const userId = req.user.id;
-      
+
       let privacySettings = await Privacy.findOne({ userId });
-      
+
       if (!privacySettings) {
         // Create default privacy settings
         privacySettings = new Privacy({
@@ -32,14 +32,14 @@ class PrivacyController {
 
       res.json({
         success: true,
-        data: privacySettings
+        data: privacySettings,
       });
     } catch (error) {
-      logger.error('Error getting privacy settings:', error);
+      logger.error("Error getting privacy settings:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get privacy settings',
-        error: error.message
+        message: "Failed to get privacy settings",
+        error: error.message,
       });
     }
   }
@@ -51,8 +51,8 @@ class PrivacyController {
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: errors.array()
+          message: "Validation failed",
+          errors: errors.array(),
         });
       }
 
@@ -62,7 +62,7 @@ class PrivacyController {
       const privacySettings = await Privacy.findOneAndUpdate(
         { userId },
         { ...updateData, updatedAt: new Date() },
-        { new: true, upsert: true }
+        { new: true, upsert: true },
       );
 
       // Log privacy setting changes
@@ -71,14 +71,14 @@ class PrivacyController {
       res.json({
         success: true,
         data: privacySettings,
-        message: 'Privacy settings updated successfully'
+        message: "Privacy settings updated successfully",
       });
     } catch (error) {
-      logger.error('Error updating privacy settings:', error);
+      logger.error("Error updating privacy settings:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to update privacy settings',
-        error: error.message
+        message: "Failed to update privacy settings",
+        error: error.message,
       });
     }
   }
@@ -90,8 +90,8 @@ class PrivacyController {
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: errors.array()
+          message: "Validation failed",
+          errors: errors.array(),
         });
       }
 
@@ -103,7 +103,7 @@ class PrivacyController {
       if (!targetUser) {
         return res.status(404).json({
           success: false,
-          message: 'Target user not found'
+          message: "Target user not found",
         });
       }
 
@@ -111,13 +111,13 @@ class PrivacyController {
       const existingRequest = await PrivacyRequest.findOne({
         requesterId,
         targetUserId,
-        status: 'pending'
+        status: "pending",
       });
 
       if (existingRequest) {
         return res.status(400).json({
           success: false,
-          message: 'You already have a pending request for this user'
+          message: "You already have a pending request for this user",
         });
       }
 
@@ -127,8 +127,8 @@ class PrivacyController {
         targetUserId,
         requestedFields,
         reason,
-        status: 'pending',
-        requestedAt: new Date()
+        status: "pending",
+        requestedAt: new Date(),
       });
 
       await privacyRequest.save();
@@ -136,32 +136,34 @@ class PrivacyController {
       // Create notification for target user
       const notification = new PrivacyNotification({
         userId: targetUserId,
-        type: 'info_request',
-        message: `${req.user.name || 'Someone'} has requested access to your information`,
+        type: "info_request",
+        message: `${req.user.name || "Someone"} has requested access to your information`,
         data: {
           requestId: privacyRequest._id,
           requesterId,
-          requestedFields
+          requestedFields,
         },
         read: false,
-        createdAt: new Date()
+        createdAt: new Date(),
       });
 
       await notification.save();
 
-      logger.info(`Information request created: ${requesterId} -> ${targetUserId}`);
+      logger.info(
+        `Information request created: ${requesterId} -> ${targetUserId}`,
+      );
 
       res.json({
         success: true,
         data: privacyRequest,
-        message: 'Information request sent successfully'
+        message: "Information request sent successfully",
       });
     } catch (error) {
-      logger.error('Error creating information request:', error);
+      logger.error("Error creating information request:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to create information request',
-        error: error.message
+        message: "Failed to create information request",
+        error: error.message,
       });
     }
   }
@@ -173,8 +175,8 @@ class PrivacyController {
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: errors.array()
+          message: "Validation failed",
+          errors: errors.array(),
         });
       }
 
@@ -184,54 +186,56 @@ class PrivacyController {
       const privacyRequest = await PrivacyRequest.findOne({
         _id: requestId,
         targetUserId: userId,
-        status: 'pending'
+        status: "pending",
       });
 
       if (!privacyRequest) {
         return res.status(404).json({
           success: false,
-          message: 'Privacy request not found or already processed'
+          message: "Privacy request not found or already processed",
         });
       }
 
       // Update request status
-      privacyRequest.status = approved ? 'approved' : 'denied';
+      privacyRequest.status = approved ? "approved" : "denied";
       privacyRequest.sharedFields = approved ? sharedFields : [];
       privacyRequest.respondedAt = new Date();
-      
+
       await privacyRequest.save();
 
       // Create notification for requester
       const notification = new PrivacyNotification({
         userId: privacyRequest.requesterId,
-        type: 'info_request_response',
-        message: approved 
-          ? 'Your information request has been approved'
-          : 'Your information request has been denied',
+        type: "info_request_response",
+        message: approved
+          ? "Your information request has been approved"
+          : "Your information request has been denied",
         data: {
           requestId: privacyRequest._id,
           approved,
-          sharedFields
+          sharedFields,
         },
         read: false,
-        createdAt: new Date()
+        createdAt: new Date(),
       });
 
       await notification.save();
 
-      logger.info(`Information request ${approved ? 'approved' : 'denied'}: ${requestId}`);
+      logger.info(
+        `Information request ${approved ? "approved" : "denied"}: ${requestId}`,
+      );
 
       res.json({
         success: true,
         data: privacyRequest,
-        message: `Request ${approved ? 'approved' : 'denied'} successfully`
+        message: `Request ${approved ? "approved" : "denied"} successfully`,
       });
     } catch (error) {
-      logger.error('Error responding to information request:', error);
+      logger.error("Error responding to information request:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to respond to information request',
-        error: error.message
+        message: "Failed to respond to information request",
+        error: error.message,
       });
     }
   }
@@ -243,21 +247,21 @@ class PrivacyController {
 
       const pendingRequests = await PrivacyRequest.find({
         targetUserId: userId,
-        status: 'pending'
+        status: "pending",
       })
-      .populate('requesterId', 'name email profileImage')
-      .sort({ requestedAt: -1 });
+        .populate("requesterId", "name email profileImage")
+        .sort({ requestedAt: -1 });
 
       res.json({
         success: true,
-        data: pendingRequests
+        data: pendingRequests,
       });
     } catch (error) {
-      logger.error('Error getting pending requests:', error);
+      logger.error("Error getting pending requests:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get pending requests',
-        error: error.message
+        message: "Failed to get pending requests",
+        error: error.message,
       });
     }
   }
@@ -275,20 +279,20 @@ class PrivacyController {
 
       const unreadCount = await PrivacyNotification.countDocuments({
         userId,
-        read: false
+        read: false,
       });
 
       res.json({
         success: true,
         data: notifications,
-        unreadCount
+        unreadCount,
       });
     } catch (error) {
-      logger.error('Error getting privacy notifications:', error);
+      logger.error("Error getting privacy notifications:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get privacy notifications',
-        error: error.message
+        message: "Failed to get privacy notifications",
+        error: error.message,
       });
     }
   }
@@ -302,27 +306,27 @@ class PrivacyController {
       const notification = await PrivacyNotification.findOneAndUpdate(
         { _id: notificationId, userId },
         { read: true, readAt: new Date() },
-        { new: true }
+        { new: true },
       );
 
       if (!notification) {
         return res.status(404).json({
           success: false,
-          message: 'Notification not found'
+          message: "Notification not found",
         });
       }
 
       res.json({
         success: true,
         data: notification,
-        message: 'Notification marked as read'
+        message: "Notification marked as read",
       });
     } catch (error) {
-      logger.error('Error marking notification as read:', error);
+      logger.error("Error marking notification as read:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to mark notification as read',
-        error: error.message
+        message: "Failed to mark notification as read",
+        error: error.message,
       });
     }
   }
@@ -338,73 +342,75 @@ class PrivacyController {
       if (!targetUser) {
         return res.status(404).json({
           success: false,
-          message: 'User not found'
+          message: "User not found",
         });
       }
 
       // Get target user's privacy settings
       const privacySettings = await Privacy.findOne({ userId: targetUserId });
-      
+
       // Get approved information requests
       const approvedRequest = await PrivacyRequest.findOne({
         requesterId: viewerId,
         targetUserId,
-        status: 'approved'
+        status: "approved",
       });
 
       // Filter data based on privacy settings and approved requests
       const filteredData = this.filterUserData(
         targetUser.toObject(),
         privacySettings,
-        approvedRequest?.sharedFields || []
+        approvedRequest?.sharedFields || [],
       );
 
       res.json({
         success: true,
-        data: filteredData
+        data: filteredData,
       });
     } catch (error) {
-      logger.error('Error getting filtered profile data:', error);
+      logger.error("Error getting filtered profile data:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get profile data',
-        error: error.message
+        message: "Failed to get profile data",
+        error: error.message,
       });
     }
   }
 
   // Helper method to filter user data based on privacy settings
   filterUserData(userData, privacySettings, approvedFields = []) {
-    const publicFields = ['name', 'profileImage', 'location', 'email'];
+    const publicFields = ["name", "profileImage", "location", "email"];
     const privateFields = {
-      phone: 'sharePhone',
-      address: 'shareAddress',
-      emergencyContact: 'shareEmergencyContact',
-      childMedicalInfo: 'shareChildMedicalInfo',
-      childAllergies: 'shareChildAllergies',
-      childBehaviorNotes: 'shareChildBehaviorNotes',
-      financialInfo: 'shareFinancialInfo'
+      phone: "sharePhone",
+      address: "shareAddress",
+      emergencyContact: "shareEmergencyContact",
+      childMedicalInfo: "shareChildMedicalInfo",
+      childAllergies: "shareChildAllergies",
+      childBehaviorNotes: "shareChildBehaviorNotes",
+      financialInfo: "shareFinancialInfo",
     };
 
     const filteredData = {};
 
     // Always include public fields
-    publicFields.forEach(field => {
+    publicFields.forEach((field) => {
       if (userData[field] !== undefined) {
         filteredData[field] = userData[field];
       }
     });
 
     // Include private fields based on settings or approved requests
-    Object.keys(privateFields).forEach(field => {
+    Object.keys(privateFields).forEach((field) => {
       const settingKey = privateFields[field];
-      
+
       if (userData[field] !== undefined) {
-        if (approvedFields.includes(field) || 
-            (privacySettings && privacySettings[settingKey])) {
+        if (
+          approvedFields.includes(field) ||
+          (privacySettings && privacySettings[settingKey])
+        ) {
           filteredData[field] = userData[field];
         } else {
-          filteredData[field] = '[Private - Request Access]';
+          filteredData[field] = "[Private - Request Access]";
         }
       }
     });

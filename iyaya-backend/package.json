@@ -9,21 +9,24 @@
   "scripts": {
     "start": "node serverSupabase.js",
     "dev": "nodemon serverSupabase.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint .",
+    "format": "prettier --write .",
     "install-deps": "npm install",
     "setup": "npm install && node serverSupabase.js",
     "build": "echo \"Build script running (no build required)\""
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": "24.x",
+    "npm": ">=10.0.0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.75.0",
-    "axios": "^1.12.1",
+    "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.0",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.1.5",
@@ -41,6 +44,9 @@
     "xss-clean": "^0.1.1"
   },
   "devDependencies": {
-    "nodemon": "^2.0.20"
+    "chalk": "^5.6.2",
+    "eslint": "^8.56.0",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.2.5"
   }
 }

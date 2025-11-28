@@ -1,30 +1,39 @@
-const Contract = require('../models/Contract');
-const User = require('../models/User');
-const { validationResult } = require('express-validator');
+const Contract = require("../models/Contract");
+const User = require("../models/User");
+const { validationResult } = require("express-validator");
 
 exports.createContract = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
-      errors: errors.array() 
+      errors: errors.array(),
     });
   }
 
   try {
-    const { caregiverId, serviceType, startDate, endDate, hours, rate, address, specialInstructions } = req.body;
-    
+    const {
+      caregiverId,
+      serviceType,
+      startDate,
+      endDate,
+      hours,
+      rate,
+      address,
+      specialInstructions,
+    } = req.body;
+
     // Validate caregiver exists
     const caregiver = await User.findById(caregiverId);
-    if (!caregiver || caregiver.role !== 'caregiver') {
-      return res.status(404).json({ 
+    if (!caregiver || caregiver.role !== "caregiver") {
+      return res.status(404).json({
         success: false,
-        error: 'Caregiver not found' 
+        error: "Caregiver not found",
       });
     }
-    
+
     const totalAmount = hours * rate;
-    
+
     const contract = new Contract({
       clientId: req.user.id,
       caregiverId,
@@ -36,27 +45,27 @@ exports.createContract = async (req, res) => {
       totalAmount,
       address,
       specialInstructions,
-      status: 'pending'
+      status: "pending",
     });
-    
+
     await contract.save();
-    
+
     // Populate caregiver details in response
     const populatedContract = await Contract.populate(contract, {
-      path: 'caregiverId',
-      select: 'name profileImage'
+      path: "caregiverId",
+      select: "name profileImage",
     });
-    
+
     res.status(201).json({
       success: true,
-      contract: populatedContract
+      contract: populatedContract,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Failed to create contract',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      error: "Failed to create contract",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
     });
   }
 };
@@ -67,13 +76,13 @@ exports.createContract = async (req, res) => {
 exports.getParentContracts = async (req, res) => {
   try {
     const contracts = await Contract.find({ clientId: req.params.parentId })
-      .populate('caregiverId', 'name profileImage')
+      .populate("caregiverId", "name profileImage")
       .sort({ createdAt: -1 });
-      
+
     res.json(contracts);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -84,13 +93,13 @@ exports.getClientContracts = exports.getParentContracts;
 exports.getCaregiverContracts = async (req, res) => {
   try {
     const contracts = await Contract.find({ caregiverId: req.user.id })
-      .populate('clientId', 'name profileImage')
+      .populate("clientId", "name profileImage")
       .sort({ createdAt: -1 });
-      
+
     res.json(contracts);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -98,16 +107,16 @@ exports.getCaregiverContracts = async (req, res) => {
 exports.updateContractStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    
+
     const contract = await Contract.findByIdAndUpdate(
       req.params.id,
       { status },
-      { new: true }
+      { new: true },
     );
-    
+
     res.json(contract);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };

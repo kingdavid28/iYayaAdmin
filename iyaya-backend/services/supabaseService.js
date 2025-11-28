@@ -3,19 +3,18 @@
  * Replaces MongoDB/Mongoose models with Supabase operations
  */
 
-const { supabase } = require('../config/supabase');
+const { supabase } = require("../config/supabase");
 
 /**
  * User Service - Handles all user-related database operations
  */
 class UserService {
-
   /**
    * Create a new user
    */
   static async create(userData) {
     const { data, error } = await supabase
-      .from('users')
+      .from("users")
       .insert(userData)
       .select()
       .single();
@@ -29,12 +28,12 @@ class UserService {
    */
   static async findById(id) {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
+      .from("users")
+      .select("*")
+      .eq("id", id)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
@@ -43,29 +42,39 @@ class UserService {
    */
   static async findDetailedById(id) {
     const { data, error } = await supabase
-      .from('users')
-      .select(`
+      .from("users")
+      .select(
+        `
         *,
         caregiver_profiles(*),
         caregiver_background_checks!caregiver_background_checks_user_id_fkey(*)
-      `)
-      .eq('id', id)
+      `,
+      )
+      .eq("id", id)
       .single();
 
-    if (!error || error.code === 'PGRST116') return data;
+    if (!error || error.code === "PGRST116") return data;
 
-    const relationshipError = ['PGRST200', 'PGRST201'].includes(error.code);
+    const relationshipError = ["PGRST200", "PGRST201"].includes(error.code);
     if (!relationshipError) throw error;
 
     const user = await this.findById(id);
     if (!user) return null;
 
     const [profileResult, backgroundResult] = await Promise.all([
-      supabase.from('caregiver_profiles').select('*').eq('user_id', id).maybeSingle(),
-      supabase.from('caregiver_background_checks').select('*').eq('user_id', id)
+      supabase
+        .from("caregiver_profiles")
+        .select("*")
+        .eq("user_id", id)
+        .maybeSingle(),
+      supabase
+        .from("caregiver_background_checks")
+        .select("*")
+        .eq("user_id", id),
     ]);
 
-    if (profileResult.error && profileResult.error.code !== 'PGRST116') throw profileResult.error;
+    if (profileResult.error && profileResult.error.code !== "PGRST116")
+      throw profileResult.error;
     if (backgroundResult.error) throw backgroundResult.error;
 
     user.caregiver_profiles = profileResult.data || null;
@@ -78,12 +87,12 @@ class UserService {
    */
   static async findByEmail(email) {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
+      .from("users")
+      .select("*")
+      .eq("email", email)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
@@ -92,9 +101,9 @@ class UserService {
    */
   static async update(id, updates) {
     const { data, error } = await supabase
-      .from('users')
+      .from("users")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -106,10 +115,7 @@ class UserService {
    * Delete user
    */
   static async delete(id) {
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from("users").delete().eq("id", id);
 
     if (error) throw error;
     return true;
@@ -118,35 +124,48 @@ class UserService {
   /**
    * Get users with pagination and filters
    */
-  static async getUsers({ page = 1, limit = 10, role, status, search, includeProfile = false } = {}) {
-    let selectColumns = '*';
+  static async getUsers({
+    page = 1,
+    limit = 10,
+    role,
+    status,
+    search,
+    includeProfile = false,
+  } = {}) {
+    let selectColumns = "*";
     if (includeProfile) {
-      selectColumns += ', caregiver_profiles(*), caregiver_background_checks!caregiver_background_checks_user_id_fkey(*)';
+      selectColumns +=
+        ", caregiver_profiles(*), caregiver_background_checks!caregiver_background_checks_user_id_fkey(*)";
     }
 
-    let query = supabase.from('users').select(selectColumns, { count: 'exact' });
+    let query = supabase
+      .from("users")
+      .select(selectColumns, { count: "exact" });
 
-    if (role) query = query.eq('role', role);
-    if (status) query = query.eq('status', status);
+    if (role) query = query.eq("role", role);
+    if (status) query = query.eq("status", status);
     if (search) {
       query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
     }
 
     const offset = (page - 1) * limit;
-    query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    query = query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
 
     if (error) {
       const relationshipMissing =
         includeProfile &&
-        ((typeof error.message === 'string' && error.message.toLowerCase().includes('relationship')) ||
-          ['PGRST200', 'PGRST201'].includes(error.code));
+        ((typeof error.message === "string" &&
+          error.message.toLowerCase().includes("relationship")) ||
+          ["PGRST200", "PGRST201"].includes(error.code));
 
       if (!relationshipMissing) throw error;
 
       console.warn(
-        '[UserService.getUsers] Relationship missing when joining caregiver data – retrying with manual merge.',
+        "[UserService.getUsers] Relationship missing when joining caregiver data – retrying with manual merge.",
       );
 
       const baseResult = await this.getUsers({
@@ -164,8 +183,11 @@ class UserService {
       if (!userIds.length) return baseResult;
 
       const [profilesResult, backgroundResult] = await Promise.all([
-        supabase.from('caregiver_profiles').select('*').in('user_id', userIds),
-        supabase.from('caregiver_background_checks').select('*').in('user_id', userIds)
+        supabase.from("caregiver_profiles").select("*").in("user_id", userIds),
+        supabase
+          .from("caregiver_background_checks")
+          .select("*")
+          .in("user_id", userIds),
       ]);
 
       if (profilesResult.error) throw profilesResult.error;
@@ -186,12 +208,12 @@ class UserService {
       const usersWithRelations = baseResult.users.map((user) => ({
         ...user,
         caregiver_profiles: profilesByUser.get(user.id) || null,
-        caregiver_background_checks: backgroundByUser.get(user.id) || []
+        caregiver_background_checks: backgroundByUser.get(user.id) || [],
       }));
 
       return {
         ...baseResult,
-        users: usersWithRelations
+        users: usersWithRelations,
       };
     }
 
@@ -200,8 +222,10 @@ class UserService {
 
   static async getUserCounts({ role, search } = {}) {
     const buildQuery = () => {
-      let query = supabase.from('users').select('id', { count: 'exact', head: true });
-      if (role) query = query.eq('role', role);
+      let query = supabase
+        .from("users")
+        .select("id", { count: "exact", head: true });
+      if (role) query = query.eq("role", role);
       if (search) {
         query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
       }
@@ -211,7 +235,7 @@ class UserService {
     const makeCount = async (status) => {
       let query = buildQuery();
       if (status) {
-        query = query.eq('status', status);
+        query = query.eq("status", status);
       }
       const { count, error } = await query;
       if (error) throw error;
@@ -220,10 +244,10 @@ class UserService {
 
     const [total, active, suspended, banned, inactive] = await Promise.all([
       makeCount(),
-      makeCount('active'),
-      makeCount('suspended'),
-      makeCount('banned'),
-      makeCount('inactive')
+      makeCount("active"),
+      makeCount("suspended"),
+      makeCount("banned"),
+      makeCount("inactive"),
     ]);
 
     return { total, active, suspended, banned, inactive };
@@ -238,7 +262,7 @@ class UserService {
       status,
       status_reason: reason ?? null,
       status_updated_at: now,
-      status_updated_by: adminId ?? null
+      status_updated_by: adminId ?? null,
     };
 
     return this.update(id, updates);
@@ -250,12 +274,12 @@ class UserService {
   static async softDelete(id, { deletedBy, reason } = {}) {
     const now = new Date().toISOString();
     return this.update(id, {
-      status: 'inactive',
-      status_reason: reason ?? 'Account deleted by administrator',
+      status: "inactive",
+      status_reason: reason ?? "Account deleted by administrator",
       deleted_at: now,
       deleted_by: deletedBy ?? null,
       status_updated_at: now,
-      status_updated_by: deletedBy ?? null
+      status_updated_by: deletedBy ?? null,
     });
   }
 
@@ -264,9 +288,9 @@ class UserService {
    */
   static async countByRole(role) {
     const { count, error } = await supabase
-      .from('users')
-      .select('id', { count: 'exact', head: true })
-      .eq('role', role);
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("role", role);
 
     if (error) throw error;
     return count || 0;
@@ -277,9 +301,9 @@ class UserService {
    */
   static async getRecentUsers(limit = 5) {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false })
+      .from("users")
+      .select("*")
+      .order("created_at", { ascending: false })
       .limit(limit);
 
     if (error) throw error;
@@ -291,14 +315,13 @@ class UserService {
  * Conversation Service - Handles messaging conversations
  */
 class ConversationService {
-
-  static async create(participant1, participant2, type = 'admin_user') {
+  static async create(participant1, participant2, type = "admin_user") {
     const { data, error } = await supabase
-      .from('conversations')
+      .from("conversations")
       .insert({
         participant_1: participant1,
         participant_2: participant2,
-        type
+        type,
       })
       .select()
       .single();
@@ -309,32 +332,34 @@ class ConversationService {
 
   static async findById(id) {
     const { data, error } = await supabase
-      .from('conversations')
-      .select('*')
-      .eq('id', id)
+      .from("conversations")
+      .select("*")
+      .eq("id", id)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
   static async findByParticipants(user1, user2) {
     const { data, error } = await supabase
-      .from('conversations')
-      .select('*')
-      .or(`and(participant_1.eq.${user1},participant_2.eq.${user2}),and(participant_1.eq.${user2},participant_2.eq.${user1})`)
+      .from("conversations")
+      .select("*")
+      .or(
+        `and(participant_1.eq.${user1},participant_2.eq.${user2}),and(participant_1.eq.${user2},participant_2.eq.${user1})`,
+      )
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
   static async getUserConversations(userId) {
     const { data, error } = await supabase
-      .from('conversations')
-      .select('*')
+      .from("conversations")
+      .select("*")
       .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
-      .order('last_message_at', { ascending: false });
+      .order("last_message_at", { ascending: false });
 
     if (error) throw error;
     return data;
@@ -342,9 +367,9 @@ class ConversationService {
 
   static async updateLastMessage(id, timestamp) {
     const { data, error } = await supabase
-      .from('conversations')
+      .from("conversations")
       .update({ last_message_at: timestamp })
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -357,10 +382,9 @@ class ConversationService {
  * Message Service - Handles individual messages
  */
 class MessageService {
-
   static async create(messageData) {
     const { data, error } = await supabase
-      .from('messages')
+      .from("messages")
       .insert(messageData)
       .select()
       .single();
@@ -371,10 +395,10 @@ class MessageService {
 
   static async getByConversation(conversationId) {
     const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
 
     if (error) throw error;
     return data;
@@ -382,9 +406,9 @@ class MessageService {
 
   static async markAsRead(messageId, timestamp) {
     const { data, error } = await supabase
-      .from('messages')
+      .from("messages")
       .update({ read_at: timestamp })
-      .eq('id', messageId)
+      .eq("id", messageId)
       .select()
       .single();
 
@@ -394,10 +418,10 @@ class MessageService {
 
   static async getUnreadCount(userId) {
     const { count, error } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('recipient_id', userId)
-      .is('read_at', null);
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("recipient_id", userId)
+      .is("read_at", null);
 
     if (error) throw error;
     return count || 0;
@@ -408,10 +432,9 @@ class MessageService {
  * Job Service - Handles job listings and applications
  */
 class JobService {
-
   static async create(jobData) {
     const { data, error } = await supabase
-      .from('jobs')
+      .from("jobs")
       .insert(jobData)
       .select()
       .single();
@@ -422,8 +445,9 @@ class JobService {
 
   static async findById(id) {
     const { data, error } = await supabase
-      .from('jobs')
-      .select(`
+      .from("jobs")
+      .select(
+        `
         id,
         title,
         description,
@@ -436,19 +460,18 @@ class JobService {
         created_at,
         updated_at,
         parent:parent_id ( id, name, email, profile_image )
-      `)
-      .eq('id', id)
+      `,
+      )
+      .eq("id", id)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
   static async getJobs({ page = 1, limit = 10, status, search } = {}) {
-    let query = supabase
-      .from('jobs')
-      .select(
-        `
+    let query = supabase.from("jobs").select(
+      `
         id,
         title,
         description,
@@ -463,14 +486,16 @@ class JobService {
         updated_at,
         parent:parent_id ( id, name, email, profile_image )
       `,
-        { count: 'exact' }
-      );
+      { count: "exact" },
+    );
 
-    if (status) query = query.eq('status', status);
+    if (status) query = query.eq("status", status);
     query = JobService.applyJobSearchFilter(query, search);
 
     const offset = (page - 1) * limit;
-    query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    query = query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
 
@@ -481,10 +506,10 @@ class JobService {
 
   static applyJobSearchFilter(query, search) {
     if (search && search.trim()) {
-      const sanitized = search.trim().replace(/[%_]/g, match => `\\${match}`);
-      const orClause = ['title', 'description', 'location']
-        .map(column => `${column}.ilike.%${sanitized}%`)
-        .join(',');
+      const sanitized = search.trim().replace(/[%_]/g, (match) => `\\${match}`);
+      const orClause = ["title", "description", "location"]
+        .map((column) => `${column}.ilike.%${sanitized}%`)
+        .join(",");
       query = query.or(orClause);
     }
     return query;
@@ -492,9 +517,9 @@ class JobService {
 
   static async update(id, updates) {
     const { data, error } = await supabase
-      .from('jobs')
+      .from("jobs")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -504,9 +529,9 @@ class JobService {
 
   static async updateStatus(id, status) {
     const { data, error } = await supabase
-      .from('jobs')
+      .from("jobs")
       .update({ status })
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -517,25 +542,25 @@ class JobService {
   // Align high-level transitions with DB enum: active, filled, cancelled, completed
   static async approve(id) {
     // Job has been accepted/assigned -> mark as filled
-    return this.updateStatus(id, 'filled');
+    return this.updateStatus(id, "filled");
   }
 
   static async reject(id /* reason not stored on jobs table */) {
     // Rejected jobs are treated as cancelled
-    return this.updateStatus(id, 'cancelled');
+    return this.updateStatus(id, "cancelled");
   }
 
   static async cancel(id /* reason not stored on jobs table */) {
-    return this.updateStatus(id, 'cancelled');
+    return this.updateStatus(id, "cancelled");
   }
 
   static async complete(id) {
-    return this.updateStatus(id, 'completed');
+    return this.updateStatus(id, "completed");
   }
 
   static async reopen(id) {
     // Re-open moves job back to active/open state
-    return this.updateStatus(id, 'active');
+    return this.updateStatus(id, "active");
   }
 }
 
@@ -543,10 +568,9 @@ class JobService {
  * Booking Service - Handles booking operations
  */
 class BookingService {
-
   static async create(bookingData) {
     const { data, error } = await supabase
-      .from('bookings')
+      .from("bookings")
       .insert(bookingData)
       .select()
       .single();
@@ -557,42 +581,42 @@ class BookingService {
 
   static async findById(id) {
     const { data, error } = await supabase
-      .from('bookings')
+      .from("bookings")
       .select(
         `*,
         parent:parent_id ( id, name, email, profile_image ),
         caregiver:caregiver_id ( id, name, email, profile_image ),
         job:job_id ( id, title, job_status:status, location )
-      `
+      `,
       )
-      .eq('id', id)
+      .eq("id", id)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
   static async getBookings({ page = 1, limit = 10, status, search } = {}) {
-    let query = supabase
-      .from('bookings')
-      .select(
-        `*,
+    let query = supabase.from("bookings").select(
+      `*,
         parent:parent_id ( id, name, email, profile_image ),
         caregiver:caregiver_id ( id, name, email, profile_image ),
         job:job_id ( id, title, job_status:status )
       `,
-        { count: 'exact' }
-      );
+      { count: "exact" },
+    );
 
-    if (status) query = query.eq('status', status);
+    if (status) query = query.eq("status", status);
     if (search) {
       query = query.or(
-        `parent.name.ilike.%${search}%,parent.email.ilike.%${search}%,caregiver.name.ilike.%${search}%,caregiver.email.ilike.%${search}%`
+        `parent.name.ilike.%${search}%,parent.email.ilike.%${search}%,caregiver.name.ilike.%${search}%,caregiver.email.ilike.%${search}%`,
       );
     }
 
     const offset = (page - 1) * limit;
-    query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    query = query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
 
@@ -602,15 +626,15 @@ class BookingService {
 
   static async updateStatus(id, status) {
     const { data, error } = await supabase
-      .from('bookings')
+      .from("bookings")
       .update({ status })
-      .eq('id', id)
+      .eq("id", id)
       .select(
         `*,
         parent:parent_id ( id, name, email, profile_image ),
         caregiver:caregiver_id ( id, name, email, profile_image ),
         job:job_id ( id, title, job_status:status, location )
-      `
+      `,
       )
       .single();
 
@@ -619,28 +643,28 @@ class BookingService {
   }
 }
 
-const sanitizePaymentSearch = (term = '') =>
+const sanitizePaymentSearch = (term = "") =>
   term
     .trim()
     .replace(/[%_]/g, (match) => `\\${match}`)
-    .replace(/,/g, '\\,');
+    .replace(/,/g, "\\,");
 
 const assessProof = (proof) => {
   const issues = [];
   if (!proof.storage_path) {
-    issues.push('Missing storage path');
+    issues.push("Missing storage path");
   }
   if (!proof.public_url) {
-    issues.push('Missing public URL');
+    issues.push("Missing public URL");
   }
   if (!proof.mime_type) {
-    issues.push('Unknown MIME type');
-  } else if (!proof.mime_type.toLowerCase().startsWith('image/')) {
+    issues.push("Unknown MIME type");
+  } else if (!proof.mime_type.toLowerCase().startsWith("image/")) {
     issues.push(`Unexpected MIME type: ${proof.mime_type}`);
   }
   return {
     issues,
-    suspicious: issues.length > 0
+    suspicious: issues.length > 0,
   };
 };
 
@@ -654,10 +678,10 @@ const normalizeProof = (proof) => {
     mimeType: proof.mime_type,
     uploadedBy: proof.uploaded_by,
     uploadedAt: proof.uploaded_at,
-    paymentType: proof.payment_type || 'deposit',
+    paymentType: proof.payment_type || "deposit",
     uploadedByInfo: proof.uploaded_by_user || null,
     suspicious,
-    issues
+    issues,
   };
 };
 
@@ -666,7 +690,7 @@ const normalizePaymentRecord = (record, proofsMap = new Map()) => {
   const proofIssues = proofs.flatMap((proof) => proof.issues);
   const hasSuspiciousProof = proofs.some((proof) => proof.suspicious);
   if (!proofs.length) {
-    proofIssues.push('No payment proof uploaded');
+    proofIssues.push("No payment proof uploaded");
   }
 
   return {
@@ -676,14 +700,14 @@ const normalizePaymentRecord = (record, proofsMap = new Map()) => {
       ? {
           id: record.parent.id,
           name: record.parent.name,
-          email: record.parent.email
+          email: record.parent.email,
         }
       : {},
     caregiverInfo: record.caregiver
       ? {
           id: record.caregiver.id,
           name: record.caregiver.name,
-          email: record.caregiver.email
+          email: record.caregiver.email,
         }
       : {},
     totalAmount: Number(record.total_amount || 0),
@@ -695,7 +719,8 @@ const normalizePaymentRecord = (record, proofsMap = new Map()) => {
     updatedAt: record.updated_at,
     proofs,
     proofIssues,
-    proofStatus: hasSuspiciousProof || proofIssues.length ? 'needs_review' : 'ok'
+    proofStatus:
+      hasSuspiciousProof || proofIssues.length ? "needs_review" : "ok",
   };
 };
 
@@ -706,7 +731,7 @@ class PaymentProofService {
     }
 
     const { data, error } = await supabase
-      .from('payment_proofs')
+      .from("payment_proofs")
       .select(
         `id,
         booking_id,
@@ -717,10 +742,10 @@ class PaymentProofService {
         uploaded_at,
         payment_type,
         uploaded_by_user:uploaded_by ( id, name, email )
-      `
+      `,
       )
-      .in('booking_id', bookingIds)
-      .order('uploaded_at', { ascending: false });
+      .in("booking_id", bookingIds)
+      .order("uploaded_at", { ascending: false });
 
     if (error) throw error;
 
@@ -760,12 +785,12 @@ class PaymentService {
 
   static async list({ page = 1, limit = 25, status, search } = {}) {
     let query = supabase
-      .from('payments')
-      .select(this.baseSelect, { count: 'exact' })
-      .order('created_at', { ascending: false });
+      .from("payments")
+      .select(this.baseSelect, { count: "exact" })
+      .order("created_at", { ascending: false });
 
-    if (status && status !== 'all') {
-      query = query.eq('payment_status', status);
+    if (status && status !== "all") {
+      query = query.eq("payment_status", status);
     }
 
     if (search && search.trim()) {
@@ -775,8 +800,8 @@ class PaymentService {
         `parent_id.name.ilike.%${sanitized}%`,
         `parent_id.email.ilike.%${sanitized}%`,
         `caregiver_id.name.ilike.%${sanitized}%`,
-        `caregiver_id.email.ilike.%${sanitized}%`
-      ].join(',');
+        `caregiver_id.email.ilike.%${sanitized}%`,
+      ].join(",");
       query = query.or(orClause);
     }
 
@@ -794,18 +819,18 @@ class PaymentService {
       payments: rows.map((row) => normalizePaymentRecord(row, proofsMap)),
       total: count || 0,
       page,
-      limit
+      limit,
     };
   }
 
   static async findById(id) {
     const { data, error } = await supabase
-      .from('payments')
+      .from("payments")
       .select(this.baseSelect)
-      .eq('id', id)
+      .eq("id", id)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     if (!data) return null;
 
     const proofs = await PaymentProofService.listByBookingId(data.booking_id);
@@ -815,13 +840,13 @@ class PaymentService {
 
   static async updateStatus(id, status, { notes } = {}) {
     const { data, error } = await supabase
-      .from('payments')
+      .from("payments")
       .update({
         payment_status: status,
-        notes: typeof notes === 'string' ? notes : null,
-        updated_at: new Date().toISOString()
+        notes: typeof notes === "string" ? notes : null,
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
+      .eq("id", id)
       .select(this.baseSelect)
       .single();
 
@@ -834,13 +859,13 @@ class PaymentService {
 
   static async refund(id, reason) {
     const { data, error } = await supabase
-      .from('payments')
+      .from("payments")
       .update({
-        payment_status: 'refunded',
+        payment_status: "refunded",
         refund_reason: reason || null,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
+      .eq("id", id)
       .select(this.baseSelect)
       .single();
 
@@ -856,10 +881,9 @@ class PaymentService {
  * Audit Log Service - Handles audit logging
  */
 class AuditLogService {
-
   static async create(logData) {
     const { data, error } = await supabase
-      .from('audit_logs')
+      .from("audit_logs")
       .insert(logData)
       .select()
       .single();
@@ -868,17 +892,25 @@ class AuditLogService {
     return data;
   }
 
-  static async getLogs({ page = 1, limit = 10, action, targetId, adminId } = {}) {
-    let query = supabase.from('audit_logs').select('*', { count: 'exact' });
+  static async getLogs({
+    page = 1,
+    limit = 10,
+    action,
+    targetId,
+    adminId,
+  } = {}) {
+    let query = supabase.from("audit_logs").select("*", { count: "exact" });
 
-    if (action) query = query.eq('action', action);
-    if (targetId) query = query.eq('target_id', targetId);
-    if (adminId) query = query.eq('admin_id', adminId);
+    if (action) query = query.eq("action", action);
+    if (targetId) query = query.eq("target_id", targetId);
+    if (adminId) query = query.eq("admin_id", adminId);
 
     const offset = (page - 1) * limit;
     query = query.range(offset, offset + limit - 1);
 
-    const { data, error, count } = await query.order('created_at', { ascending: false });
+    const { data, error, count } = await query.order("created_at", {
+      ascending: false,
+    });
 
     if (error) throw error;
     return { logs: data, total: count, page, limit };
@@ -886,7 +918,16 @@ class AuditLogService {
 }
 
 class AuthAdminService {
-  static async createUser({ email, password, phone, role = 'parent', name, emailConfirm = true, userMetadata = {}, appMetadata = {} } = {}) {
+  static async createUser({
+    email,
+    password,
+    phone,
+    role = "parent",
+    name,
+    emailConfirm = true,
+    userMetadata = {},
+    appMetadata = {},
+  } = {}) {
     const payload = {
       email,
       email_confirm: emailConfirm,
@@ -894,12 +935,12 @@ class AuthAdminService {
         name,
         role,
         phone,
-        ...userMetadata
+        ...userMetadata,
       },
       app_metadata: {
         role,
-        ...appMetadata
-      }
+        ...appMetadata,
+      },
     };
 
     if (password) {
@@ -912,17 +953,30 @@ class AuthAdminService {
     return data?.user || null;
   }
 
-  static async updateUser(userId, { email, password, phone, role, name, userMetadata = {}, appMetadata = {}, banDuration } = {}) {
+  static async updateUser(
+    userId,
+    {
+      email,
+      password,
+      phone,
+      role,
+      name,
+      userMetadata = {},
+      appMetadata = {},
+      banDuration,
+    } = {},
+  ) {
     const updatePayload = {};
 
     if (email) updatePayload.email = email;
     if (password) updatePayload.password = password;
-    if (typeof banDuration !== 'undefined') updatePayload.ban_duration = banDuration;
+    if (typeof banDuration !== "undefined")
+      updatePayload.ban_duration = banDuration;
 
     const metadata = {
       ...(userMetadata || {}),
       ...(name ? { name } : {}),
-      ...(phone ? { phone } : {})
+      ...(phone ? { phone } : {}),
     };
     if (role) metadata.role = role;
     if (Object.keys(metadata).length) {
@@ -930,14 +984,17 @@ class AuthAdminService {
     }
 
     const appMeta = {
-      ...(appMetadata || {})
+      ...(appMetadata || {}),
     };
     if (role) appMeta.role = role;
     if (Object.keys(appMeta).length) {
       updatePayload.app_metadata = appMeta;
     }
 
-    const { data, error } = await supabase.auth.admin.updateUserById(userId, updatePayload);
+    const { data, error } = await supabase.auth.admin.updateUserById(
+      userId,
+      updatePayload,
+    );
 
     if (error) throw error;
     return data?.user || null;
@@ -953,20 +1010,20 @@ class AuthAdminService {
 class CaregiverProfileService {
   static async getByUserId(userId) {
     const { data, error } = await supabase
-      .from('caregiver_profiles')
-      .select('*')
-      .eq('user_id', userId)
+      .from("caregiver_profiles")
+      .select("*")
+      .eq("user_id", userId)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
   static async upsert(userId, profileData = {}) {
     const payload = { user_id: userId, ...profileData };
     const { data, error } = await supabase
-      .from('caregiver_profiles')
-      .upsert(payload, { onConflict: 'user_id' })
+      .from("caregiver_profiles")
+      .upsert(payload, { onConflict: "user_id" })
       .select()
       .single();
 
@@ -976,9 +1033,9 @@ class CaregiverProfileService {
 
   static async update(userId, updates) {
     const { data, error } = await supabase
-      .from('caregiver_profiles')
+      .from("caregiver_profiles")
       .update(updates)
-      .eq('user_id', userId)
+      .eq("user_id", userId)
       .select()
       .single();
 
@@ -988,9 +1045,9 @@ class CaregiverProfileService {
 
   static async delete(userId) {
     const { error } = await supabase
-      .from('caregiver_profiles')
+      .from("caregiver_profiles")
       .delete()
-      .eq('user_id', userId);
+      .eq("user_id", userId);
 
     if (error) throw error;
     return true;
@@ -1000,12 +1057,12 @@ class CaregiverProfileService {
     const existing = await this.getByUserId(userId);
     const verification = {
       ...(existing?.verification || {}),
-      ...verificationUpdates
+      ...verificationUpdates,
     };
 
     return this.upsert(userId, {
       ...(existing || {}),
-      verification
+      verification,
     });
   }
 }
@@ -1013,10 +1070,10 @@ class CaregiverProfileService {
 class CaregiverDocumentService {
   static async listByUser(userId) {
     const { data, error } = await supabase
-      .from('caregiver_documents')
-      .select('*')
-      .eq('user_id', userId)
-      .order('uploaded_at', { ascending: false });
+      .from("caregiver_documents")
+      .select("*")
+      .eq("user_id", userId)
+      .order("uploaded_at", { ascending: false });
 
     if (error) throw error;
     return data || [];
@@ -1025,7 +1082,7 @@ class CaregiverDocumentService {
   static async create(userId, documentData) {
     const payload = { user_id: userId, ...documentData };
     const { data, error } = await supabase
-      .from('caregiver_documents')
+      .from("caregiver_documents")
       .insert(payload)
       .select()
       .single();
@@ -1036,9 +1093,9 @@ class CaregiverDocumentService {
 
   static async update(documentId, updates) {
     const { data, error } = await supabase
-      .from('caregiver_documents')
+      .from("caregiver_documents")
       .update(updates)
-      .eq('id', documentId)
+      .eq("id", documentId)
       .select()
       .single();
 
@@ -1048,19 +1105,22 @@ class CaregiverDocumentService {
 
   static async delete(documentId) {
     const { error } = await supabase
-      .from('caregiver_documents')
+      .from("caregiver_documents")
       .delete()
-      .eq('id', documentId);
+      .eq("id", documentId);
 
     if (error) throw error;
     return true;
   }
 
-  static async markVerified(documentId, { adminId, verifiedAt = new Date().toISOString(), verified = true } = {}) {
+  static async markVerified(
+    documentId,
+    { adminId, verifiedAt = new Date().toISOString(), verified = true } = {},
+  ) {
     return this.update(documentId, {
       verified,
       verified_at: verified ? verifiedAt : null,
-      verified_by: verified ? adminId ?? null : null
+      verified_by: verified ? (adminId ?? null) : null,
     });
   }
 }
@@ -1068,19 +1128,19 @@ class CaregiverDocumentService {
 class BackgroundCheckService {
   static async getByUserId(userId) {
     const { data, error } = await supabase
-      .from('caregiver_background_checks')
-      .select('*')
-      .eq('user_id', userId)
+      .from("caregiver_background_checks")
+      .select("*")
+      .eq("user_id", userId)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   }
 
   static async upsert(userId, payload = {}) {
     const { data, error } = await supabase
-      .from('caregiver_background_checks')
-      .upsert({ user_id: userId, ...payload }, { onConflict: 'user_id' })
+      .from("caregiver_background_checks")
+      .upsert({ user_id: userId, ...payload }, { onConflict: "user_id" })
       .select()
       .single();
 
@@ -1088,18 +1148,31 @@ class BackgroundCheckService {
     return data;
   }
 
-  static async updateStatus(userId, { status, provider, check_types, notes, verifiedBy, verifiedAt, completedAt, requestedAt, expiryDate } = {}) {
+  static async updateStatus(
+    userId,
+    {
+      status,
+      provider,
+      check_types,
+      notes,
+      verifiedBy,
+      verifiedAt,
+      completedAt,
+      requestedAt,
+      expiryDate,
+    } = {},
+  ) {
     const existing = await this.getByUserId(userId);
     const updates = {
-      status: status ?? existing?.status ?? 'not_started',
-      provider: provider ?? existing?.provider ?? 'internal',
+      status: status ?? existing?.status ?? "not_started",
+      provider: provider ?? existing?.provider ?? "internal",
       check_types: check_types ?? existing?.check_types ?? [],
       notes: notes ?? existing?.notes ?? null,
       verified_by: verifiedBy ?? existing?.verified_by ?? null,
       verified_at: verifiedAt ?? existing?.verified_at ?? null,
       completed_at: completedAt ?? existing?.completed_at ?? null,
       requested_at: requestedAt ?? existing?.requested_at ?? null,
-      expiry_date: expiryDate ?? existing?.expiry_date ?? null
+      expiry_date: expiryDate ?? existing?.expiry_date ?? null,
     };
 
     return this.upsert(userId, updates);
@@ -1113,11 +1186,11 @@ class UserStatusHistoryService {
       status,
       reason: reason ?? null,
       changed_by: changedBy ?? null,
-      changed_at: new Date().toISOString()
+      changed_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabase
-      .from('user_status_history')
+      .from("user_status_history")
       .insert(payload)
       .select()
       .single();
@@ -1128,10 +1201,10 @@ class UserStatusHistoryService {
 
   static async listByUser(userId, { limit = 20 } = {}) {
     const { data, error } = await supabase
-      .from('user_status_history')
-      .select('*')
-      .eq('user_id', userId)
-      .order('changed_at', { ascending: false })
+      .from("user_status_history")
+      .select("*")
+      .eq("user_id", userId)
+      .order("changed_at", { ascending: false })
       .limit(limit);
 
     if (error) throw error;
@@ -1143,56 +1216,56 @@ const DEFAULT_SYSTEM_SETTINGS = {
   maintenance_mode: false,
   registration_enabled: true,
   email_verification_required: true,
-  background_check_required: true
+  background_check_required: true,
 };
 
 class SystemSettingsService {
   static toCamel(record = DEFAULT_SYSTEM_SETTINGS) {
     return {
       maintenanceMode:
-        typeof record.maintenance_mode === 'boolean'
+        typeof record.maintenance_mode === "boolean"
           ? record.maintenance_mode
           : DEFAULT_SYSTEM_SETTINGS.maintenance_mode,
       registrationEnabled:
-        typeof record.registration_enabled === 'boolean'
+        typeof record.registration_enabled === "boolean"
           ? record.registration_enabled
           : DEFAULT_SYSTEM_SETTINGS.registration_enabled,
       emailVerificationRequired:
-        typeof record.email_verification_required === 'boolean'
+        typeof record.email_verification_required === "boolean"
           ? record.email_verification_required
           : DEFAULT_SYSTEM_SETTINGS.email_verification_required,
       backgroundCheckRequired:
-        typeof record.background_check_required === 'boolean'
+        typeof record.background_check_required === "boolean"
           ? record.background_check_required
-          : DEFAULT_SYSTEM_SETTINGS.background_check_required
+          : DEFAULT_SYSTEM_SETTINGS.background_check_required,
     };
   }
 
   static toSnake(settings = {}) {
     return {
       maintenance_mode:
-        typeof settings.maintenanceMode === 'boolean'
+        typeof settings.maintenanceMode === "boolean"
           ? settings.maintenanceMode
           : DEFAULT_SYSTEM_SETTINGS.maintenance_mode,
       registration_enabled:
-        typeof settings.registrationEnabled === 'boolean'
+        typeof settings.registrationEnabled === "boolean"
           ? settings.registrationEnabled
           : DEFAULT_SYSTEM_SETTINGS.registration_enabled,
       email_verification_required:
-        typeof settings.emailVerificationRequired === 'boolean'
+        typeof settings.emailVerificationRequired === "boolean"
           ? settings.emailVerificationRequired
           : DEFAULT_SYSTEM_SETTINGS.email_verification_required,
       background_check_required:
-        typeof settings.backgroundCheckRequired === 'boolean'
+        typeof settings.backgroundCheckRequired === "boolean"
           ? settings.backgroundCheckRequired
-          : DEFAULT_SYSTEM_SETTINGS.background_check_required
+          : DEFAULT_SYSTEM_SETTINGS.background_check_required,
     };
   }
 
   static async getSettings() {
     const { data, error } = await supabase
-      .from('system_settings')
-      .select('*')
+      .from("system_settings")
+      .select("*")
       .limit(1)
       .single();
 
@@ -1200,9 +1273,11 @@ class SystemSettingsService {
       return this.toCamel(data);
     }
 
-    if (error.code === 'PGRST116' || error.code === '42P01') {
-      if (error.code === '42P01') {
-        console.warn('[SystemSettingsService] system_settings table missing; returning defaults.');
+    if (error.code === "PGRST116" || error.code === "42P01") {
+      if (error.code === "42P01") {
+        console.warn(
+          "[SystemSettingsService] system_settings table missing; returning defaults.",
+        );
       }
       return this.toCamel();
     }
@@ -1213,19 +1288,19 @@ class SystemSettingsService {
   static async updateSettings(settings = {}) {
     const payload = {
       id: 1,
-      ...this.toSnake(settings)
+      ...this.toSnake(settings),
     };
 
     const { data, error } = await supabase
-      .from('system_settings')
-      .upsert(payload, { onConflict: 'id' })
-      .select('*')
+      .from("system_settings")
+      .upsert(payload, { onConflict: "id" })
+      .select("*")
       .single();
 
     if (error) {
-      if (error.code === '42P01') {
+      if (error.code === "42P01") {
         const missingTableError = new Error(
-          'system_settings table is missing. Create it or adjust SystemSettingsService.',
+          "system_settings table is missing. Create it or adjust SystemSettingsService.",
         );
         missingTableError.original = error;
         throw missingTableError;
@@ -1251,5 +1326,5 @@ module.exports = {
   CaregiverDocumentService,
   BackgroundCheckService,
   UserStatusHistoryService,
-  SystemSettingsService
+  SystemSettingsService,
 };

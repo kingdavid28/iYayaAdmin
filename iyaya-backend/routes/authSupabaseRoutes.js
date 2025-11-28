@@ -3,12 +3,12 @@
  * Updated to use Supabase auth controller
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { rateLimit } = require('express-rate-limit');
-const { authenticate, authorize } = require('../middleware/auth');
-const auditService = require('../services/auditService');
-const path = require('path');
+const { rateLimit } = require("express-rate-limit");
+const { authenticate, authorize } = require("../middleware/auth");
+const auditService = require("../services/auditService");
+const path = require("path");
 const {
   login,
   register,
@@ -22,8 +22,8 @@ const {
   uploadProfileImageBase64,
   resetPassword,
   confirmPasswordReset,
-  checkEmailExists
-} = require('../controllers/authSupabase');
+  checkEmailExists,
+} = require("../controllers/authSupabase");
 
 // Enhanced controller loading with better error handling and fallbacks
 const loadController = (name) => {
@@ -42,12 +42,19 @@ const loadController = (name) => {
     console.error(`❌ Failed to load ${name}:`, err.message);
 
     // Special handling for auth controller (critical)
-    if (name === 'authSupabase') {
-      console.error('🚨 Critical: Supabase Auth controller is required for the application to function');
-      console.log('Attempting to locate auth controller...');
+    if (name === "authSupabase") {
+      console.error(
+        "🚨 Critical: Supabase Auth controller is required for the application to function",
+      );
+      console.log("Attempting to locate auth controller...");
 
       // Try common alternative names
-      const alternatives = ['auth', 'authController', 'AuthController', 'userAuth'];
+      const alternatives = [
+        "auth",
+        "authController",
+        "AuthController",
+        "userAuth",
+      ];
       for (const alt of alternatives) {
         try {
           const altPath = path.join(__dirname, `../controllers/${alt}`);
@@ -59,42 +66,49 @@ const loadController = (name) => {
         }
       }
 
-      console.error('💥 No auth controller found. Please ensure:');
-      console.error('1. The file exists in controllers/ directory');
-      console.error('2. It has the correct name (authSupabase.js)');
-      console.error('3. It exports the required methods');
+      console.error("💥 No auth controller found. Please ensure:");
+      console.error("1. The file exists in controllers/ directory");
+      console.error("2. It has the correct name (authSupabase.js)");
+      console.error("3. It exports the required methods");
       process.exit(1);
     }
 
     // For other controllers, provide minimal fallback
     return {
-      [name]: (req, res) => res.status(501).json({
-        success: false,
-        error: 'Controller not implemented'
-      })
+      [name]: (req, res) =>
+        res.status(501).json({
+          success: false,
+          error: "Controller not implemented",
+        }),
     };
   }
 };
 
 // Load controllers with enhanced error handling
-const authController = loadController('authSupabase') || {
-  register: (req, res) => res.status(503).json({ error: 'Auth service unavailable' }),
-  login: (req, res) => res.status(503).json({ error: 'Auth service unavailable' }),
-  logout: (req, res) => res.status(503).json({ error: 'Auth service unavailable' }),
-  refreshToken: (req, res) => res.status(503).json({ error: 'Auth service unavailable' }),
-  getCurrentUser: (req, res) => res.status(503).json({ error: 'Auth service unavailable' }),
-  updateChildren: (req, res) => res.status(503).json({ error: 'Update children service unavailable' })
+const authController = loadController("authSupabase") || {
+  register: (req, res) =>
+    res.status(503).json({ error: "Auth service unavailable" }),
+  login: (req, res) =>
+    res.status(503).json({ error: "Auth service unavailable" }),
+  logout: (req, res) =>
+    res.status(503).json({ error: "Auth service unavailable" }),
+  refreshToken: (req, res) =>
+    res.status(503).json({ error: "Auth service unavailable" }),
+  getCurrentUser: (req, res) =>
+    res.status(503).json({ error: "Auth service unavailable" }),
+  updateChildren: (req, res) =>
+    res.status(503).json({ error: "Update children service unavailable" }),
 };
 
 // Load validation from utils directory instead of controllers
 let validation;
 try {
-  validation = require('../utils/validation');
-  console.log('✅ validation loaded successfully');
+  validation = require("../utils/validation");
+  console.log("✅ validation loaded successfully");
 } catch (err) {
-  console.warn('⚠️ Using basic validation fallback');
+  console.warn("⚠️ Using basic validation fallback");
   validation = {
-    validate: () => (req, res, next) => next()
+    validate: () => (req, res, next) => next(),
   };
 }
 
@@ -102,15 +116,17 @@ try {
 const verifyMethods = (controller, methods, controllerName) => {
   if (!controller) return;
 
-  methods.forEach(method => {
-    if (typeof controller[method] !== 'function') {
-      console.error(`❌ Missing required method in ${controllerName}: ${method}`);
+  methods.forEach((method) => {
+    if (typeof controller[method] !== "function") {
+      console.error(
+        `❌ Missing required method in ${controllerName}: ${method}`,
+      );
 
-      if (controllerName === 'validation') {
+      if (controllerName === "validation") {
         // Patch missing validation methods with no-op
         controller[method] = () => (req, res, next) => next();
         console.warn(`⚠️ Added no-op fallback for ${method}`);
-      } else if (controllerName === 'authSupabase') {
+      } else if (controllerName === "authSupabase") {
         // Critical auth methods cannot be missing
         console.error(`💥 Critical auth method missing: ${method}`);
         process.exit(1);
@@ -120,72 +136,78 @@ const verifyMethods = (controller, methods, controllerName) => {
 };
 
 // Verify methods with controller names for better debugging
-verifyMethods(authController, [
-  'register',
-  'login',
-  'logout',
-  'refreshToken',
-  'getCurrentUser',
-  'updateChildren',
-  'updateRole',
-  'firebaseSync',
-  'updateProfile',
-  'uploadProfileImageBase64'
-], 'authSupabase');
+verifyMethods(
+  authController,
+  [
+    "register",
+    "login",
+    "logout",
+    "refreshToken",
+    "getCurrentUser",
+    "updateChildren",
+    "updateRole",
+    "firebaseSync",
+    "updateProfile",
+    "uploadProfileImageBase64",
+  ],
+  "authSupabase",
+);
 
-verifyMethods(validation, [
-  'validate'
-], 'validation');
+verifyMethods(validation, ["validate"], "validation");
 
 // 4. Improved rate limiting with dynamic configuration
-const createLimiter = (options = {}) => rateLimit({
-  windowMs: options.windowMs || 15 * 60 * 1000, // 15 minutes default
-  max: options.max || 5, // 5 requests default
-  message: options.message || 'Too many requests, please try again later',
-  handler: (req, res, next) => {
-    auditService.logSecurityEvent('RATE_LIMIT_EXCEEDED', {
-      ip: req.ip,
-      endpoint: req.path,
-      method: req.method,
-      timestamp: new Date()
-    });
-    res.status(429).json({
-      success: false,
-      error: options.message || 'Too many requests, please try again later'
-    });
-  },
-  skip: (req) => {
-    // Skip rate limiting for health checks and docs
-    return ['/health-check', '/docs'].includes(req.path);
-  }
-});
+const createLimiter = (options = {}) =>
+  rateLimit({
+    windowMs: options.windowMs || 15 * 60 * 1000, // 15 minutes default
+    max: options.max || 5, // 5 requests default
+    message: options.message || "Too many requests, please try again later",
+    handler: (req, res, next) => {
+      auditService.logSecurityEvent("RATE_LIMIT_EXCEEDED", {
+        ip: req.ip,
+        endpoint: req.path,
+        method: req.method,
+        timestamp: new Date(),
+      });
+      res.status(429).json({
+        success: false,
+        error: options.message || "Too many requests, please try again later",
+      });
+    },
+    skip: (req) => {
+      // Skip rate limiting for health checks and docs
+      return ["/health-check", "/docs"].includes(req.path);
+    },
+  });
 
 // Configure different limiters
 const authLimiter = createLimiter({
   max: 5,
-  message: 'Too many auth attempts, please try again later'
+  message: "Too many auth attempts, please try again later",
 });
 
 const strictLimiter = createLimiter({
   // In development, allow generous retries to avoid blocking during testing
-  max: process.env.NODE_ENV === 'production' ? 3 : 1000,
-  windowMs: process.env.NODE_ENV === 'production' ? (60 * 60 * 1000) : (60 * 1000),
-  message: 'Too many attempts on sensitive endpoint'
+  max: process.env.NODE_ENV === "production" ? 3 : 1000,
+  windowMs: process.env.NODE_ENV === "production" ? 60 * 60 * 1000 : 60 * 1000,
+  message: "Too many attempts on sensitive endpoint",
 });
 
 // More permissive limiter for frequent profile reads (mobile apps poll this)
 const profileLimiter = createLimiter({
   max: 200, // allow many reads within the window
   windowMs: 15 * 60 * 1000,
-  message: 'Too many profile requests, please slow down temporarily'
+  message: "Too many profile requests, please slow down temporarily",
 });
 
 // 5. Security middleware stack
 const securityHeaders = (req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains",
+  );
   next();
 };
 
@@ -200,146 +222,137 @@ router.use(securityHeaders);
 router.use(requestLogger);
 
 // Update children for parent user
-router.put('/profile/children', authenticate, authController.updateChildren);
+router.put("/profile/children", authenticate, authController.updateChildren);
 
 // 7. Enhanced route definitions with proper validation
-router.post('/register',
+router.post(
+  "/register",
   strictLimiter,
-  validation.validate('register'),
-  authController.register || ((req, res) =>
-    res.status(503).json({ error: 'Registration service unavailable' })
-  )
+  validation.validate("register"),
+  authController.register ||
+    ((req, res) =>
+      res.status(503).json({ error: "Registration service unavailable" })),
 );
 
-router.post('/login',
+router.post(
+  "/login",
   strictLimiter,
-  validation.validate('login'),
-  authController.login || ((req, res) =>
-    res.status(503).json({ error: 'Login service unavailable' })
-  )
+  validation.validate("login"),
+  authController.login ||
+    ((req, res) =>
+      res.status(503).json({ error: "Login service unavailable" })),
 );
 
 // Firebase sync endpoint for social authentication
-router.post('/firebase-sync',
+router.post(
+  "/firebase-sync",
   authLimiter,
-  authController.firebaseSync || ((req, res) =>
-    res.status(503).json({ error: 'Firebase sync service unavailable' })
-  )
+  authController.firebaseSync ||
+    ((req, res) =>
+      res.status(503).json({ error: "Firebase sync service unavailable" })),
 );
 
-router.post('/reset-password',
+router.post("/reset-password", strictLimiter, authController.resetPassword);
+
+router.post(
+  "/confirm-reset-password",
   strictLimiter,
-  authController.resetPassword
+  authController.confirmPasswordReset,
 );
 
-router.post('/confirm-reset-password',
-  strictLimiter,
-  authController.confirmPasswordReset
-);
+router.post("/check-email", authLimiter, authController.checkEmailExists);
 
-router.post('/check-email',
-  authLimiter,
-  authController.checkEmailExists
-);
-
-router.get('/me',
-  profileLimiter,
-  authenticate,
-  authController.getCurrentUser
-);
+router.get("/me", profileLimiter, authenticate, authController.getCurrentUser);
 
 // Alias for legacy/frontend compatibility
-router.get('/profile',
+router.get(
+  "/profile",
   profileLimiter,
   authenticate,
-  authController.getCurrentUser
+  authController.getCurrentUser,
 );
 
 // Update current authenticated user's profile
-router.put('/profile',
-  authenticate,
-  authController.updateProfile
-);
+router.put("/profile", authenticate, authController.updateProfile);
 
 // Persist selected role for the authenticated user
-router.patch('/role',
-  authenticate,
-  authController.updateRole
-);
+router.patch("/role", authenticate, authController.updateRole);
 
 // Upload profile image via base64
-router.post('/profile/image-base64',
+router.post(
+  "/profile/image-base64",
   authenticate,
-  authController.uploadProfileImageBase64
+  authController.uploadProfileImageBase64,
 );
 
 // Alternative route for profile image upload
-router.post('/upload-profile-image',
+router.post(
+  "/upload-profile-image",
   authenticate,
-  authController.uploadProfileImageBase64
+  authController.uploadProfileImageBase64,
 );
 
 // 8. Enhanced health check with system information
-router.get('/health-check', (req, res) => {
+router.get("/health-check", (req, res) => {
   const healthCheck = {
-    status: 'operational',
+    status: "operational",
     timestamp: new Date(),
     uptime: process.uptime(),
     memoryUsage: process.memoryUsage(),
-    dbStatus: 'supabase_connected', // Updated for Supabase
-    loadAvg: process.cpuUsage()
+    dbStatus: "supabase_connected", // Updated for Supabase
+    loadAvg: process.cpuUsage(),
   };
 
   res.status(200).json({
     success: true,
-    ...healthCheck
+    ...healthCheck,
   });
 });
 
 // 9. Improved API documentation endpoint
-router.get('/docs', (req, res) => {
+router.get("/docs", (req, res) => {
   const apiDocumentation = {
-    name: 'Supabase Authentication Service API',
-    version: '1.0.0',
-    description: 'Authentication API using Supabase for user management',
+    name: "Supabase Authentication Service API",
+    version: "1.0.0",
+    description: "Authentication API using Supabase for user management",
     endpoints: [
       {
-        method: 'POST',
-        path: '/register',
-        description: 'Register a new user',
+        method: "POST",
+        path: "/register",
+        description: "Register a new user",
         validation: {
           body: {
-            email: 'string (required, email format)',
-            password: 'string (required, min 8 chars)',
-            name: 'string (required)',
-            role: 'string (optional: user, admin, provider)'
-          }
-        }
+            email: "string (required, email format)",
+            password: "string (required, min 8 chars)",
+            name: "string (required)",
+            role: "string (optional: user, admin, provider)",
+          },
+        },
       },
       {
-        method: 'POST',
-        path: '/login',
-        description: 'Authenticate user',
+        method: "POST",
+        path: "/login",
+        description: "Authenticate user",
         validation: {
           body: {
-            email: 'string (required)',
-            password: 'string (required)'
-          }
-        }
+            email: "string (required)",
+            password: "string (required)",
+          },
+        },
       },
       {
-        method: 'POST',
-        path: '/logout',
-        description: 'Invalidate user session',
-        authentication: 'Bearer token required'
+        method: "POST",
+        path: "/logout",
+        description: "Invalidate user session",
+        authentication: "Bearer token required",
       },
       {
-        method: 'GET',
-        path: '/me',
-        description: 'Get current user profile',
-        authentication: 'Bearer token required'
-      }
-    ]
+        method: "GET",
+        path: "/me",
+        description: "Get current user profile",
+        authentication: "Bearer token required",
+      },
+    ],
   };
 
   res.json(apiDocumentation);
@@ -347,18 +360,21 @@ router.get('/docs', (req, res) => {
 
 // 10. Error handling middleware
 router.use((err, req, res, next) => {
-  console.error('Route error:', err);
+  console.error("Route error:", err);
 
-  auditService.logSecurityEvent('ROUTE_ERROR', {
+  auditService.logSecurityEvent("ROUTE_ERROR", {
     error: err.message,
     path: req.path,
     method: req.method,
-    timestamp: new Date()
+    timestamp: new Date(),
   });
 
   res.status(err.status || 500).json({
     success: false,
-    error: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred'
+    error:
+      process.env.NODE_ENV === "development"
+        ? err.message
+        : "An error occurred",
   });
 });
 

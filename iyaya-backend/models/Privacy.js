@@ -1,55 +1,55 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const privacySchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
   },
   sharePhone: {
     type: Boolean,
-    default: false
+    default: false,
   },
   shareAddress: {
     type: Boolean,
-    default: false
+    default: false,
   },
   shareEmergencyContact: {
     type: Boolean,
-    default: false
+    default: false,
   },
   shareChildMedicalInfo: {
     type: Boolean,
-    default: false
+    default: false,
   },
   shareChildAllergies: {
     type: Boolean,
-    default: false
+    default: false,
   },
   shareChildBehaviorNotes: {
     type: Boolean,
-    default: false
+    default: false,
   },
   shareFinancialInfo: {
     type: Boolean,
-    default: false
+    default: false,
   },
   autoApproveBasicInfo: {
     type: Boolean,
-    default: true
+    default: true,
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 // Update the updatedAt field before saving
-privacySchema.pre('save', function(next) {
+privacySchema.pre("save", function (next) {
   this.updatedAt = new Date();
   next();
 });
@@ -57,4 +57,4 @@ privacySchema.pre('save', function(next) {
 // Index for efficient queries
 // userId index is automatically created by unique: true
 
-module.exports = mongoose.model('Privacy', privacySchema);
+module.exports = mongoose.model("Privacy", privacySchema);

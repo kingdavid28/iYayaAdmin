@@ -4,8 +4,8 @@ const {
   CaregiverProfileService,
   CaregiverDocumentService,
   BackgroundCheckService,
-  UserStatusHistoryService
-} = require('../services/supabaseService');
+  UserStatusHistoryService,
+} = require("../services/supabaseService");
 
 const normalizeUser = (record) => {
   if (!record) return null;
@@ -24,7 +24,7 @@ const normalizeUser = (record) => {
     createdAt: record.created_at,
     updatedAt: record.updated_at,
     caregiverProfile: record.caregiver_profiles || null,
-    caregiverBackgroundCheck: record.caregiver_background_checks || null
+    caregiverBackgroundCheck: record.caregiver_background_checks || null,
   };
 };
 
@@ -49,15 +49,15 @@ const normalizeCaregiver = (record) => {
     skills: record.skills,
     languages: profile.languages,
     ageCareRanges: profile.age_care_ranges,
-    createdAt: record.created_at
+    createdAt: record.created_at,
   };
 };
 
-const handleSupabaseError = (error, context = 'Supabase operation') => {
+const handleSupabaseError = (error, context = "Supabase operation") => {
   console.error(`${context} error:`, error);
   return {
     success: false,
-    error: error?.message || 'Unexpected Supabase error'
+    error: error?.message || "Unexpected Supabase error",
   };
 };
 
@@ -69,7 +69,7 @@ exports.getCurrentUserProfile = async (req, res) => {
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: 'User not authenticated'
+        error: "User not authenticated",
       });
     }
 
@@ -78,7 +78,7 @@ exports.getCurrentUserProfile = async (req, res) => {
     if (!record) {
       return res.status(404).json({
         success: false,
-        error: 'User not found'
+        error: "User not found",
       });
     }
 
@@ -87,10 +87,10 @@ exports.getCurrentUserProfile = async (req, res) => {
     res.json({
       success: true,
       data: profile,
-      ...profile
+      ...profile,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'getCurrentUserProfile'));
+    res.status(500).json(handleSupabaseError(error, "getCurrentUserProfile"));
   }
 };
 
@@ -103,7 +103,7 @@ exports.getUserProfile = async (req, res) => {
     if (!record) {
       return res.status(404).json({
         success: false,
-        error: 'User not found'
+        error: "User not found",
       });
     }
 
@@ -112,10 +112,10 @@ exports.getUserProfile = async (req, res) => {
     res.json({
       success: true,
       data: profile,
-      ...profile
+      ...profile,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'getUserProfile'));
+    res.status(500).json(handleSupabaseError(error, "getUserProfile"));
   }
 };
 
@@ -124,7 +124,9 @@ exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'User not authenticated' });
+      return res
+        .status(401)
+        .json({ success: false, error: "User not authenticated" });
     }
 
     const updateData = { ...req.body };
@@ -141,10 +143,13 @@ exports.updateProfile = async (req, res) => {
       phone: updateData.phone,
       address: updateData.address,
       profile_image: updateData.profileImage || updateData.profile_image,
-      children: updateData.children
+      children: updateData.children,
     };
 
-    Object.keys(allowedUserFields).forEach((key) => allowedUserFields[key] === undefined && delete allowedUserFields[key]);
+    Object.keys(allowedUserFields).forEach(
+      (key) =>
+        allowedUserFields[key] === undefined && delete allowedUserFields[key],
+    );
 
     const profileFields = {
       bio: updateData.bio,
@@ -155,10 +160,12 @@ exports.updateProfile = async (req, res) => {
       emergency_contacts: updateData.emergencyContacts,
       languages: updateData.languages,
       age_care_ranges: updateData.ageCareRanges,
-      certifications: updateData.certifications
+      certifications: updateData.certifications,
     };
 
-    Object.keys(profileFields).forEach((key) => profileFields[key] === undefined && delete profileFields[key]);
+    Object.keys(profileFields).forEach(
+      (key) => profileFields[key] === undefined && delete profileFields[key],
+    );
 
     let updatedUser = null;
     if (Object.keys(allowedUserFields).length > 0) {
@@ -167,16 +174,22 @@ exports.updateProfile = async (req, res) => {
 
     let updatedProfile = null;
     if (Object.keys(profileFields).length > 0) {
-      updatedProfile = await CaregiverProfileService.upsert(userId, profileFields);
+      updatedProfile = await CaregiverProfileService.upsert(
+        userId,
+        profileFields,
+      );
     }
 
     res.json({
       success: true,
-      message: 'Profile updated successfully',
-      data: normalizeUser({ ...(updatedUser || {}), caregiver_profiles: updatedProfile })
+      message: "Profile updated successfully",
+      data: normalizeUser({
+        ...(updatedUser || {}),
+        caregiver_profiles: updatedProfile,
+      }),
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'updateProfile'));
+    res.status(500).json(handleSupabaseError(error, "updateProfile"));
   }
 };
 
@@ -189,7 +202,7 @@ exports.getUsers = async (req, res) => {
       role,
       limit: Number(limit),
       page: Number(page),
-      includeProfile: true
+      includeProfile: true,
     });
 
     const normalized = (users || []).map(normalizeUser);
@@ -202,12 +215,12 @@ exports.getUsers = async (req, res) => {
           page: Number(page),
           limit: Number(limit),
           total,
-          pages: Math.ceil((total || 0) / Number(limit) || 1)
-        }
-      }
+          pages: Math.ceil((total || 0) / Number(limit) || 1),
+        },
+      },
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'getUsers'));
+    res.status(500).json(handleSupabaseError(error, "getUsers"));
   }
 };
 
@@ -217,10 +230,10 @@ exports.getCaregivers = async (req, res) => {
     const { search, page = 1, limit = 20 } = req.query;
     const { users, total } = await UserService.getUsers({
       search,
-      role: 'caregiver',
+      role: "caregiver",
       limit: Number(limit),
       page: Number(page),
-      includeProfile: true
+      includeProfile: true,
     });
 
     const caregivers = (users || []).map(normalizeCaregiver);
@@ -233,12 +246,12 @@ exports.getCaregivers = async (req, res) => {
           page: Number(page),
           limit: Number(limit),
           total,
-          pages: Math.ceil((total || 0) / Number(limit) || 1)
-        }
-      }
+          pages: Math.ceil((total || 0) / Number(limit) || 1),
+        },
+      },
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'getCaregivers'));
+    res.status(500).json(handleSupabaseError(error, "getCaregivers"));
   }
 };
 
@@ -248,9 +261,9 @@ exports.getFamilies = async (req, res) => {
     const { search, page = 1, limit = 20 } = req.query;
     const { users, total } = await UserService.getUsers({
       search,
-      role: 'parent',
+      role: "parent",
       limit: Number(limit),
-      page: Number(page)
+      page: Number(page),
     });
 
     const normalized = (users || []).map(normalizeUser);
@@ -263,12 +276,12 @@ exports.getFamilies = async (req, res) => {
           page: Number(page),
           limit: Number(limit),
           total,
-          pages: Math.ceil((total || 0) / Number(limit) || 1)
-        }
-      }
+          pages: Math.ceil((total || 0) / Number(limit) || 1),
+        },
+      },
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'getFamilies'));
+    res.status(500).json(handleSupabaseError(error, "getFamilies"));
   }
 };
 
@@ -281,16 +294,16 @@ exports.getUserById = async (req, res) => {
     if (!record) {
       return res.status(404).json({
         success: false,
-        error: 'User not found'
+        error: "User not found",
       });
     }
 
     res.json({
       success: true,
-      data: normalizeUser(record)
+      data: normalizeUser(record),
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'getUserById'));
+    res.status(500).json(handleSupabaseError(error, "getUserById"));
   }
 };
 
@@ -302,10 +315,10 @@ exports.listCaregiverDocuments = async (req, res) => {
 
     res.json({
       success: true,
-      data: documents
+      data: documents,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'listCaregiverDocuments'));
+    res.status(500).json(handleSupabaseError(error, "listCaregiverDocuments"));
   }
 };
 
@@ -317,10 +330,10 @@ exports.createCaregiverDocument = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: document
+      data: document,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'createCaregiverDocument'));
+    res.status(500).json(handleSupabaseError(error, "createCaregiverDocument"));
   }
 };
 
@@ -332,10 +345,10 @@ exports.updateCaregiverDocument = async (req, res) => {
 
     res.json({
       success: true,
-      data: updated
+      data: updated,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'updateCaregiverDocument'));
+    res.status(500).json(handleSupabaseError(error, "updateCaregiverDocument"));
   }
 };
 
@@ -347,10 +360,10 @@ exports.deleteCaregiverDocument = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Document deleted successfully'
+      message: "Document deleted successfully",
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'deleteCaregiverDocument'));
+    res.status(500).json(handleSupabaseError(error, "deleteCaregiverDocument"));
   }
 };
 
@@ -363,15 +376,15 @@ exports.verifyCaregiverDocument = async (req, res) => {
 
     const updated = await CaregiverDocumentService.markVerified(documentId, {
       adminId,
-      verified
+      verified,
     });
 
     res.json({
       success: true,
-      data: updated
+      data: updated,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'verifyCaregiverDocument'));
+    res.status(500).json(handleSupabaseError(error, "verifyCaregiverDocument"));
   }
 };
 
@@ -388,10 +401,12 @@ exports.updateBackgroundCheckStatus = async (req, res) => {
 
     res.json({
       success: true,
-      data: record
+      data: record,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'updateBackgroundCheckStatus'));
+    res
+      .status(500)
+      .json(handleSupabaseError(error, "updateBackgroundCheckStatus"));
   }
 };
 
@@ -403,9 +418,9 @@ exports.getUserStatusHistory = async (req, res) => {
 
     res.json({
       success: true,
-      data: history
+      data: history,
     });
   } catch (error) {
-    res.status(500).json(handleSupabaseError(error, 'getUserStatusHistory'));
+    res.status(500).json(handleSupabaseError(error, "getUserStatusHistory"));
   }
 };

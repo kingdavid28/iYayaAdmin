@@ -1,20 +1,20 @@
-const Booking = require('../models/Booking');
-const User = require('../models/User');
-const Caregiver = require('../models/Caregiver');
+const Booking = require("../models/Booking");
+const User = require("../models/User");
+const Caregiver = require("../models/Caregiver");
 
 const normalizeChildField = (value) => {
   if (Array.isArray(value)) {
     return value
-      .map((entry) => (typeof entry === 'string' ? entry.trim() : entry))
+      .map((entry) => (typeof entry === "string" ? entry.trim() : entry))
       .filter(Boolean)
-      .join(', ');
+      .join(", ");
   }
 
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return value.trim();
   }
 
-  return value ?? '';
+  return value ?? "";
 };
 
 const sanitizeChildren = (children) => {
@@ -23,7 +23,7 @@ const sanitizeChildren = (children) => {
   }
 
   return children.map((child) => {
-    if (!child || typeof child !== 'object') {
+    if (!child || typeof child !== "object") {
       return child;
     }
 
@@ -31,7 +31,9 @@ const sanitizeChildren = (children) => {
       ...child,
       preferences: normalizeChildField(child.preferences),
       allergies: normalizeChildField(child.allergies),
-      specialInstructions: normalizeChildField(child.specialInstructions ?? child.instructions),
+      specialInstructions: normalizeChildField(
+        child.specialInstructions ?? child.instructions,
+      ),
       notes: normalizeChildField(child.notes),
     };
   });
@@ -43,48 +45,59 @@ const buildCaregiverProfile = async (caregiverIdValue) => {
   }
 
   const caregiverFromId = await Caregiver.findById(caregiverIdValue)
-    .populate('userId', 'name email profileImage')
+    .populate("userId", "name email profileImage")
     .lean();
 
   if (caregiverFromId) {
-    const caregiverUser = caregiverFromId.userId && typeof caregiverFromId.userId === 'object'
-      ? caregiverFromId.userId
-      : null;
+    const caregiverUser =
+      caregiverFromId.userId && typeof caregiverFromId.userId === "object"
+        ? caregiverFromId.userId
+        : null;
 
     return {
       _id: caregiverFromId._id,
       id: caregiverFromId._id,
       userId: caregiverUser?._id || caregiverFromId.userId || caregiverIdValue,
-      name: caregiverFromId.name || caregiverUser?.name || 'Caregiver',
-      email: caregiverUser?.email || 'no-email@example.com',
+      name: caregiverFromId.name || caregiverUser?.name || "Caregiver",
+      email: caregiverUser?.email || "no-email@example.com",
       profileImage: caregiverFromId.profileImage || caregiverUser?.profileImage,
       avatar: caregiverFromId.profileImage || caregiverUser?.profileImage,
       hourlyRate: caregiverFromId.hourlyRate,
       rating: caregiverFromId.rating,
-      reviewCount: Array.isArray(caregiverFromId.reviews) ? caregiverFromId.reviews.length : 0,
+      reviewCount: Array.isArray(caregiverFromId.reviews)
+        ? caregiverFromId.reviews.length
+        : 0,
     };
   }
 
-  const caregiverFromUserId = await Caregiver.findOne({ userId: caregiverIdValue })
-    .populate('userId', 'name email profileImage')
+  const caregiverFromUserId = await Caregiver.findOne({
+    userId: caregiverIdValue,
+  })
+    .populate("userId", "name email profileImage")
     .lean();
 
   if (caregiverFromUserId) {
-    const caregiverUser = caregiverFromUserId.userId && typeof caregiverFromUserId.userId === 'object'
-      ? caregiverFromUserId.userId
-      : null;
+    const caregiverUser =
+      caregiverFromUserId.userId &&
+      typeof caregiverFromUserId.userId === "object"
+        ? caregiverFromUserId.userId
+        : null;
 
     return {
       _id: caregiverFromUserId._id,
       id: caregiverFromUserId._id,
-      userId: caregiverUser?._id || caregiverFromUserId.userId || caregiverIdValue,
-      name: caregiverFromUserId.name || caregiverUser?.name || 'Caregiver',
-      email: caregiverUser?.email || 'no-email@example.com',
-      profileImage: caregiverFromUserId.profileImage || caregiverUser?.profileImage,
+      userId:
+        caregiverUser?._id || caregiverFromUserId.userId || caregiverIdValue,
+      name: caregiverFromUserId.name || caregiverUser?.name || "Caregiver",
+      email: caregiverUser?.email || "no-email@example.com",
+      profileImage:
+        caregiverFromUserId.profileImage || caregiverUser?.profileImage,
       avatar: caregiverFromUserId.profileImage || caregiverUser?.profileImage,
       hourlyRate: caregiverFromUserId.hourlyRate,
       rating: caregiverFromUserId.rating,
-      reviewCount: Array.isArray(caregiverFromUserId.reviews) ? caregiverFromUserId.reviews.length : 0,
+      reviewCount: Array.isArray(caregiverFromUserId.reviews)
+        ? caregiverFromUserId.reviews.length
+        : 0,
     };
   }
 
@@ -95,8 +108,8 @@ const buildCaregiverProfile = async (caregiverIdValue) => {
       _id: userDoc._id,
       id: userDoc._id,
       userId: userDoc._id,
-      name: userDoc.name || userDoc.displayName || 'Caregiver',
-      email: userDoc.email || 'no-email@example.com',
+      name: userDoc.name || userDoc.displayName || "Caregiver",
+      email: userDoc.email || "no-email@example.com",
       profileImage: userDoc.profileImage,
       avatar: userDoc.profileImage,
       hourlyRate: undefined,
@@ -113,7 +126,9 @@ const hydrateSingleBooking = async (bookingRecord) => {
     return null;
   }
 
-  const bookingObj = bookingRecord.toObject ? bookingRecord.toObject() : { ...bookingRecord };
+  const bookingObj = bookingRecord.toObject
+    ? bookingRecord.toObject()
+    : { ...bookingRecord };
 
   if (bookingObj.clientId) {
     bookingObj.parentId = bookingObj.clientId._id || bookingObj.clientId;
@@ -121,7 +136,7 @@ const hydrateSingleBooking = async (bookingRecord) => {
 
   const caregiverRef = bookingObj.caregiverId;
   const caregiverIdValue =
-    caregiverRef && typeof caregiverRef === 'object'
+    caregiverRef && typeof caregiverRef === "object"
       ? caregiverRef._id || caregiverRef.id || caregiverRef.toString?.()
       : caregiverRef;
 
@@ -132,7 +147,7 @@ const hydrateSingleBooking = async (bookingRecord) => {
 
     if (caregiverProfile) {
       bookingObj.caregiverProfile = caregiverProfile;
-      if (!bookingObj.caregiver || typeof bookingObj.caregiver !== 'object') {
+      if (!bookingObj.caregiver || typeof bookingObj.caregiver !== "object") {
         bookingObj.caregiver = caregiverProfile;
       }
     }
@@ -149,21 +164,22 @@ const hydrateSingleBooking = async (bookingRecord) => {
 // Get user's bookings
 exports.getMyBookings = async (req, res) => {
   try {
-    console.log(`getMyBookings called for user: ${req.user.id}, role: ${req.user.role}`);
+    console.log(
+      `getMyBookings called for user: ${req.user.id}, role: ${req.user.role}`,
+    );
 
     const searchCriteria = {
-      $or: [
-        { clientId: req.user.id },
-        { caregiverId: req.user.id }
-      ]
+      $or: [{ clientId: req.user.id }, { caregiverId: req.user.id }],
     };
     const bookings = await Booking.find(searchCriteria)
-      .populate('clientId', 'name email profileImage')
+      .populate("clientId", "name email profileImage")
       .sort({ createdAt: -1 })
       .lean();
 
-    const hydratedBookings = await Promise.all(bookings.map(hydrateSingleBooking));
-    
+    const hydratedBookings = await Promise.all(
+      bookings.map(hydrateSingleBooking),
+    );
+
     res.json({
       success: true,
       data: {
@@ -171,10 +187,10 @@ exports.getMyBookings = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching bookings:', error);
+    console.error("Error fetching bookings:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch bookings'
+      error: "Failed to fetch bookings",
     });
   }
 };
@@ -187,7 +203,7 @@ exports.createBooking = async (req, res) => {
     const bookingPayload = {
       ...req.body,
       clientId: req.user.id,
-      status: req.body.status || 'pending',
+      status: req.body.status || "pending",
     };
 
     if (sanitizedChildren !== undefined) {
@@ -207,10 +223,10 @@ exports.createBooking = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error creating booking:', error);
+    console.error("Error creating booking:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create booking'
+      error: "Failed to create booking",
     });
   }
 };
@@ -231,19 +247,16 @@ exports.updateBooking = async (req, res) => {
     const booking = await Booking.findOneAndUpdate(
       {
         _id: req.params.id,
-        $or: [
-          { clientId: req.user.id },
-          { caregiverId: req.user.id },
-        ],
+        $or: [{ clientId: req.user.id }, { caregiverId: req.user.id }],
       },
       updatePayload,
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     ).lean();
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        error: 'Booking not found or not authorized'
+        error: "Booking not found or not authorized",
       });
     }
 
@@ -256,10 +269,10 @@ exports.updateBooking = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error updating booking:', error);
+    console.error("Error updating booking:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update booking'
+      error: "Failed to update booking",
     });
   }
 };
@@ -275,25 +288,25 @@ exports.uploadPaymentProof = async (req, res) => {
         clientId: req.user.id,
       },
       { paymentProof: imageBase64, paymentProofMimeType: mimeType },
-      { new: true, lean: true }
+      { new: true, lean: true },
     );
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        error: 'Booking not found or not authorized'
+        error: "Booking not found or not authorized",
       });
     }
 
     res.json({
       success: true,
-      message: 'Payment proof uploaded successfully'
+      message: "Payment proof uploaded successfully",
     });
   } catch (error) {
-    console.error('Error uploading payment proof:', error);
+    console.error("Error uploading payment proof:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to upload payment proof'
+      error: "Failed to upload payment proof",
     });
   }
 };
@@ -303,18 +316,15 @@ exports.getBookingById = async (req, res) => {
   try {
     const booking = await Booking.findOne({
       _id: req.params.id,
-      $or: [
-        { clientId: req.user.id },
-        { caregiverId: req.user.id },
-      ],
+      $or: [{ clientId: req.user.id }, { caregiverId: req.user.id }],
     })
-      .populate('clientId', 'name email profileImage')
+      .populate("clientId", "name email profileImage")
       .lean();
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        error: 'Booking not found or not authorized'
+        error: "Booking not found or not authorized",
       });
     }
 
@@ -327,10 +337,10 @@ exports.getBookingById = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching booking:', error);
+    console.error("Error fetching booking:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch booking'
+      error: "Failed to fetch booking",
     });
   }
 };
@@ -342,17 +352,16 @@ exports.updateBookingStatus = async (req, res) => {
 
     let caregiverProfileId = null;
 
-    if (req.user.role === 'caregiver') {
-      const caregiverProfile = await Caregiver.findOne({ userId: req.user.id }).lean();
+    if (req.user.role === "caregiver") {
+      const caregiverProfile = await Caregiver.findOne({
+        userId: req.user.id,
+      }).lean();
       caregiverProfileId = caregiverProfile ? caregiverProfile._id : null;
     }
 
     const searchCriteria = {
       _id: req.params.id,
-      $or: [
-        { clientId: req.user.id },
-        { caregiverId: req.user.id },
-      ],
+      $or: [{ clientId: req.user.id }, { caregiverId: req.user.id }],
     };
 
     if (caregiverProfileId) {
@@ -362,24 +371,23 @@ exports.updateBookingStatus = async (req, res) => {
     const booking = await Booking.findOneAndUpdate(
       searchCriteria,
       { status, feedback },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     ).lean();
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        error: 'Booking not found or not authorized'
+        error: "Booking not found or not authorized",
       });
     }
 
-    if (status === 'completed' && booking.caregiverId) {
+    if (status === "completed" && booking.caregiverId) {
       try {
-        await Caregiver.findByIdAndUpdate(
-          booking.caregiverId,
-          { hasCompletedJobs: true }
-        );
+        await Caregiver.findByIdAndUpdate(booking.caregiverId, {
+          hasCompletedJobs: true,
+        });
       } catch (error) {
-        console.error('Error updating caregiver hasCompletedJobs:', error);
+        console.error("Error updating caregiver hasCompletedJobs:", error);
       }
     }
 
@@ -392,10 +400,10 @@ exports.updateBookingStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error updating booking status:', error);
+    console.error("Error updating booking status:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update booking status'
+      error: "Failed to update booking status",
     });
   }
 };
@@ -404,30 +412,30 @@ exports.updateBookingStatus = async (req, res) => {
 exports.cancelBooking = async (req, res) => {
   try {
     const booking = await Booking.findOneAndUpdate(
-      { 
+      {
         _id: req.params.id,
-        clientId: req.user.id
+        clientId: req.user.id,
       },
-      { status: 'cancelled' },
-      { new: true }
+      { status: "cancelled" },
+      { new: true },
     );
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
-        error: 'Booking not found or not authorized'
+        error: "Booking not found or not authorized",
       });
     }
-    
+
     res.json({
       success: true,
-      message: 'Booking cancelled successfully'
+      message: "Booking cancelled successfully",
     });
   } catch (error) {
-    console.error('Error cancelling booking:', error);
+    console.error("Error cancelling booking:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to cancel booking'
+      error: "Failed to cancel booking",
     });
   }
 };
@@ -439,5 +447,5 @@ module.exports = {
   uploadPaymentProof: exports.uploadPaymentProof,
   getBookingById: exports.getBookingById,
   updateBookingStatus: exports.updateBookingStatus,
-  cancelBooking: exports.cancelBooking
+  cancelBooking: exports.cancelBooking,
 };

@@ -4,8 +4,8 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo build:web",
     "build:static": "npx expo export -p web --output-dir dist",
@@ -42,7 +42,7 @@
     "react-native-worklets": "0.5.1"
   },
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   },
   "resolutions": {
     "@babel/traverse": "^7.23.2",

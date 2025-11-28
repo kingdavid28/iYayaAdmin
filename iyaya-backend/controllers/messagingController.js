@@ -1,7 +1,7 @@
-const Message = require('../models/Message');
-const Conversation = require('../models/Conversation');
-const { authenticate } = require('../middleware/auth');
-const { errorHandler } = require('../utils/errorHandler');
+const Message = require("../models/Message");
+const Conversation = require("../models/Conversation");
+const { authenticate } = require("../middleware/auth");
+const { errorHandler } = require("../utils/errorHandler");
 
 // Get all conversations for the current user
 const getConversations = async (req, res) => {
@@ -9,20 +9,20 @@ const getConversations = async (req, res) => {
     const userId = req.user.id;
 
     const conversations = await Conversation.find({
-      participants: userId
+      participants: userId,
     })
-    .populate('participants', 'name email')
-    .sort({ updatedAt: -1 });
+      .populate("participants", "name email")
+      .sort({ updatedAt: -1 });
 
     res.status(200).json({
       success: true,
-      data: conversations
+      data: conversations,
     });
   } catch (error) {
-    console.error('Get conversations error:', error);
+    console.error("Get conversations error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch conversations'
+      error: "Failed to fetch conversations",
     });
   }
 };
@@ -37,18 +37,18 @@ const getMessages = async (req, res) => {
     // Verify user is part of the conversation
     const conversation = await Conversation.findOne({
       _id: conversationId,
-      participants: userId
+      participants: userId,
     });
 
     if (!conversation) {
       return res.status(404).json({
         success: false,
-        error: 'Conversation not found'
+        error: "Conversation not found",
       });
     }
 
     const messages = await Message.find({ conversationId })
-      .populate('sender', 'name email')
+      .populate("sender", "name email")
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -58,14 +58,14 @@ const getMessages = async (req, res) => {
       data: {
         messages: messages.reverse(),
         page: parseInt(page),
-        limit: parseInt(limit)
-      }
+        limit: parseInt(limit),
+      },
     });
   } catch (error) {
-    console.error('Get messages error:', error);
+    console.error("Get messages error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch messages'
+      error: "Failed to fetch messages",
     });
   }
 };
@@ -73,12 +73,12 @@ const getMessages = async (req, res) => {
 // Send a message
 const sendMessage = async (req, res) => {
   try {
-    const { recipientId, content, messageType = 'text' } = req.body;
+    const { recipientId, content, messageType = "text" } = req.body;
     const senderId = req.user.id;
 
     // Find or create conversation
     let conversation = await Conversation.findOne({
-      participants: { $all: [senderId, recipientId] }
+      participants: { $all: [senderId, recipientId] },
     });
 
     if (!conversation) {
@@ -87,8 +87,8 @@ const sendMessage = async (req, res) => {
         lastMessage: {
           content,
           sender: senderId,
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       });
       await conversation.save();
     }
@@ -99,7 +99,7 @@ const sendMessage = async (req, res) => {
       sender: senderId,
       recipient: recipientId,
       content,
-      messageType
+      messageType,
     });
 
     await message.save();
@@ -108,23 +108,23 @@ const sendMessage = async (req, res) => {
     conversation.lastMessage = {
       content,
       sender: senderId,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
     conversation.updatedAt = new Date();
     await conversation.save();
 
     // Populate sender info for response
-    await message.populate('sender', 'name email');
+    await message.populate("sender", "name email");
 
     res.status(201).json({
       success: true,
-      data: message
+      data: message,
     });
   } catch (error) {
-    console.error('Send message error:', error);
+    console.error("Send message error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to send message'
+      error: "Failed to send message",
     });
   }
 };
@@ -137,13 +137,13 @@ const startConversation = async (req, res) => {
 
     // Check if conversation already exists
     const existingConversation = await Conversation.findOne({
-      participants: { $all: [senderId, recipientId] }
+      participants: { $all: [senderId, recipientId] },
     });
 
     if (existingConversation) {
       return res.status(400).json({
         success: false,
-        error: 'Conversation already exists'
+        error: "Conversation already exists",
       });
     }
 
@@ -153,8 +153,8 @@ const startConversation = async (req, res) => {
       lastMessage: {
         content: initialMessage,
         sender: senderId,
-        timestamp: new Date()
-      }
+        timestamp: new Date(),
+      },
     });
 
     await conversation.save();
@@ -165,7 +165,7 @@ const startConversation = async (req, res) => {
       sender: senderId,
       recipient: recipientId,
       content: initialMessage,
-      messageType: 'text'
+      messageType: "text",
     });
 
     await message.save();
@@ -174,14 +174,14 @@ const startConversation = async (req, res) => {
       success: true,
       data: {
         conversation,
-        message
-      }
+        message,
+      },
     });
   } catch (error) {
-    console.error('Start conversation error:', error);
+    console.error("Start conversation error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to start conversation'
+      error: "Failed to start conversation",
     });
   }
 };
@@ -196,23 +196,23 @@ const markAsRead = async (req, res) => {
       {
         conversationId,
         recipient: userId,
-        read: false
+        read: false,
       },
       {
         read: true,
-        readAt: new Date()
-      }
+        readAt: new Date(),
+      },
     );
 
     res.status(200).json({
       success: true,
-      message: 'Messages marked as read'
+      message: "Messages marked as read",
     });
   } catch (error) {
-    console.error('Mark as read error:', error);
+    console.error("Mark as read error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to mark messages as read'
+      error: "Failed to mark messages as read",
     });
   }
 };
@@ -222,5 +222,5 @@ module.exports = {
   getMessages,
   sendMessage,
   startConversation,
-  markAsRead
+  markAsRead,
 };

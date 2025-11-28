@@ -1,37 +1,41 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const Caregiver = require('../models/Caregiver');
-const Contract = require('../models/Contract');
-const Notification = require('../models/Notification');
-const ErrorResponse = require('../utils/errorResponse');
-const auditService = require('../services/auditService');
-const emailService = require('../services/emailService');
-const { jwtSecret, jwtExpiry, refreshTokenSecret, refreshTokenExpiry } = require('../config/auth');
-const fs = require('fs');
-const path = require('path');
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const Caregiver = require("../models/Caregiver");
+const Contract = require("../models/Contract");
+const Notification = require("../models/Notification");
+const ErrorResponse = require("../utils/errorResponse");
+const auditService = require("../services/auditService");
+const emailService = require("../services/emailService");
+const {
+  jwtSecret,
+  jwtExpiry,
+  refreshTokenSecret,
+  refreshTokenExpiry,
+} = require("../config/auth");
+const fs = require("fs");
+const path = require("path");
 
 // Normalize incoming roles - only parent and caregiver allowed
 function normalizeRole(input) {
-  const role = String(input || '').toLowerCase();
-  if (role === 'caregiver') return 'caregiver';
-  return 'parent'; // Default to parent for any other input
+  const role = String(input || "").toLowerCase();
+  if (role === "caregiver") return "caregiver";
+  return "parent"; // Default to parent for any other input
 }
 
 // Helper function to generate tokens
 const generateTokens = (user) => {
-  const tokenRole = user.role === 'caregiver' ? 'caregiver' : 'parent';
-  
-  const accessToken = jwt.sign(
-    { id: user._id, role: tokenRole },
-    jwtSecret,
-    { expiresIn: jwtExpiry, algorithm: 'HS256' }
-  );
+  const tokenRole = user.role === "caregiver" ? "caregiver" : "parent";
+
+  const accessToken = jwt.sign({ id: user._id, role: tokenRole }, jwtSecret, {
+    expiresIn: jwtExpiry,
+    algorithm: "HS256",
+  });
 
   const refreshToken = jwt.sign(
     { id: user._id, tokenVersion: user.tokenVersion || 0 },
     refreshTokenSecret,
-    { expiresIn: refreshTokenExpiry, algorithm: 'HS256' }
+    { expiresIn: refreshTokenExpiry, algorithm: "HS256" },
   );
 
   return { accessToken, refreshToken };
@@ -41,22 +45,24 @@ const generateTokens = (user) => {
 const notifyParentsOfNewCaregiver = async (caregiverUser) => {
   try {
     // Get all parent users with verified emails
-    const parents = await User.find({ 
-      role: 'parent',
-      'verification.emailVerified': true 
-    }).select('_id name email');
+    const parents = await User.find({
+      role: "parent",
+      "verification.emailVerified": true,
+    }).select("_id name email");
 
-    console.log(`📢 Notifying ${parents.length} parents about new caregiver: ${caregiverUser.name}`);
+    console.log(
+      `📢 Notifying ${parents.length} parents about new caregiver: ${caregiverUser.name}`,
+    );
 
     // Create in-app notifications for each parent
     for (const parent of parents) {
       try {
         await Notification.create({
           userId: parent._id,
-          type: 'NEW_CAREGIVER',
-          title: 'New Caregiver Available',
+          type: "NEW_CAREGIVER",
+          title: "New Caregiver Available",
           message: `${caregiverUser.name} just joined iYaya as a caregiver`,
-          data: { caregiverId: caregiverUser._id }
+          data: { caregiverId: caregiverUser._id },
         });
         console.log(`📱 Notification created for parent ${parent.name}`);
       } catch (error) {
@@ -64,7 +70,7 @@ const notifyParentsOfNewCaregiver = async (caregiverUser) => {
       }
     }
   } catch (error) {
-    console.error('Error notifying parents of new caregiver:', error);
+    console.error("Error notifying parents of new caregiver:", error);
     throw error;
   }
 };
@@ -80,9 +86,9 @@ async function hasActiveContractWithParent(requesterId, parentId) {
   const contract = await Contract.findOne({
     $or: [
       { clientId: parentId, providerId: requesterId },
-      { clientId: requesterId, providerId: parentId }
+      { clientId: requesterId, providerId: parentId },
     ],
-    status: { $in: ['active', 'completed'] }
+    status: { $in: ["active", "completed"] },
   });
   return !!contract;
 }
@@ -97,18 +103,18 @@ exports.firebaseSync = async (req, res, next) => {
       firstName,
       lastName,
       profileImage,
-      role = 'parent',
-      authProvider = 'firebase',
+      role = "parent",
+      authProvider = "firebase",
       facebookId,
       googleId,
-      emailVerified = false
+      emailVerified = false,
     } = req.body;
 
     // Validate required fields
     if (!firebaseUid || !email) {
       return res.status(400).json({
         success: false,
-        error: 'Firebase UID and email are required'
+        error: "Firebase UID and email are required",
       });
     }
 
@@ -127,7 +133,8 @@ exports.firebaseSync = async (req, res, next) => {
         profileImage: profileImage || user.profileImage,
         authProvider: authProvider || user.authProvider,
         lastLogin: new Date(),
-        'verification.emailVerified': emailVerified || user.verification.emailVerified
+        "verification.emailVerified":
+          emailVerified || user.verification.emailVerified,
       };
 
       // Update social provider IDs if provided
@@ -138,7 +145,7 @@ exports.firebaseSync = async (req, res, next) => {
       Object.assign(user, updates);
       await user.save();
 
-      console.log('✅ Updated existing Firebase user:', user.email);
+      console.log("✅ Updated existing Firebase user:", user.email);
     } else {
       // Check if user exists by email (for linking accounts)
       user = await User.findOne({ email });
@@ -149,31 +156,32 @@ exports.firebaseSync = async (req, res, next) => {
         user.authProvider = authProvider;
         user.profileImage = profileImage || user.profileImage;
         user.lastLogin = new Date();
-        user.verification.emailVerified = emailVerified || user.verification.emailVerified;
+        user.verification.emailVerified =
+          emailVerified || user.verification.emailVerified;
 
         // Update social provider IDs if provided
         if (facebookId) user.facebookId = facebookId;
         if (googleId) user.googleId = googleId;
 
         await user.save();
-        console.log('🔗 Linked Firebase to existing user:', user.email);
+        console.log("🔗 Linked Firebase to existing user:", user.email);
       } else {
         // Create new user
         const userData = {
           firebaseUid,
           email,
-          name: name || `${firstName || ''} ${lastName || ''}`.trim(),
+          name: name || `${firstName || ""} ${lastName || ""}`.trim(),
           firstName,
           lastName,
           profileImage,
           role: normalizedRole,
           authProvider,
           verification: {
-            emailVerified: emailVerified || (authProvider === 'facebook'), // Facebook emails are pre-verified
+            emailVerified: emailVerified || authProvider === "facebook", // Facebook emails are pre-verified
             token: null,
-            expires: null
+            expires: null,
           },
-          lastLogin: new Date()
+          lastLogin: new Date(),
         };
 
         // Add social provider IDs if provided
@@ -183,7 +191,12 @@ exports.firebaseSync = async (req, res, next) => {
         user = new User(userData);
         await user.save();
 
-        console.log('🆕 Created new Firebase user:', user.email, 'Role:', normalizedRole);
+        console.log(
+          "🆕 Created new Firebase user:",
+          user.email,
+          "Role:",
+          normalizedRole,
+        );
       }
     }
 
@@ -193,25 +206,25 @@ exports.firebaseSync = async (req, res, next) => {
     // Log the authentication event
     try {
       await auditService.log({
-        action: 'FIREBASE_SYNC',
+        action: "FIREBASE_SYNC",
         userId: user._id,
         details: {
           authProvider,
           email: user.email,
           role: user.role,
-          isNewUser: !user.lastLogin || user.createdAt === user.updatedAt
+          isNewUser: !user.lastLogin || user.createdAt === user.updatedAt,
         },
         ip: req.ip,
-        userAgent: req.get('User-Agent')
+        userAgent: req.get("User-Agent"),
       });
     } catch (auditError) {
-      console.warn('Failed to log Firebase sync audit:', auditError.message);
+      console.warn("Failed to log Firebase sync audit:", auditError.message);
     }
 
     // Return success response
     res.status(200).json({
       success: true,
-      message: 'Firebase user synchronized successfully',
+      message: "Firebase user synchronized successfully",
       user: {
         id: user._id,
         firebaseUid: user.firebaseUid,
@@ -226,36 +239,35 @@ exports.firebaseSync = async (req, res, next) => {
         googleId: user.googleId,
         emailVerified: user.verification.emailVerified,
         createdAt: user.createdAt,
-        updatedAt: user.updatedAt
+        updatedAt: user.updatedAt,
       },
-      tokens
+      tokens,
     });
-
   } catch (error) {
-    console.error('Firebase sync error:', error);
-    
+    console.error("Firebase sync error:", error);
+
     // Handle specific MongoDB errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
       return res.status(400).json({
         success: false,
-        error: `A user with this ${field} already exists`
+        error: `A user with this ${field} already exists`,
       });
     }
 
     // Handle validation errors
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((err) => err.message);
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
-        details: errors
+        error: "Validation failed",
+        details: errors,
       });
     }
 
     res.status(500).json({
       success: false,
-      error: 'Internal server error during Firebase sync'
+      error: "Internal server error during Firebase sync",
     });
   }
 };
@@ -264,7 +276,9 @@ exports.uploadProfileImageBase64 = async (req, res, next) => {
   try {
     const { imageBase64, mimeType } = req.body || {};
     if (!imageBase64) {
-      return res.status(400).json({ success: false, error: 'imageBase64 is required' });
+      return res
+        .status(400)
+        .json({ success: false, error: "imageBase64 is required" });
     }
 
     // Support data URLs like: data:image/png;base64,XXXX
@@ -278,26 +292,32 @@ exports.uploadProfileImageBase64 = async (req, res, next) => {
 
     // Determine extension
     const extFromMime = (mt) => {
-      if (!mt) return 'png';
-      const map = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/jpg': 'jpg' };
-      return map[mt] || 'png';
+      if (!mt) return "png";
+      const map = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/jpg": "jpg",
+      };
+      return map[mt] || "png";
     };
     let ext = extFromMime(detectedMime);
     // Remove leading dot if present
-    if (ext.startsWith('.')) {
+    if (ext.startsWith(".")) {
       ext = ext.substring(1);
     }
 
     // Create uploads dir if not exists
-    const uploadsDir = path.join(__dirname, '..', 'uploads');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    const uploadsDir = path.join(__dirname, "..", "uploads");
+    if (!fs.existsSync(uploadsDir))
+      fs.mkdirSync(uploadsDir, { recursive: true });
 
     // File name by user id and timestamp
     const fileName = `profile_${req.user.id}_${Date.now()}.${ext}`;
     const filePath = path.join(uploadsDir, fileName);
 
     // Write file
-    const buffer = Buffer.from(base64String, 'base64');
+    const buffer = Buffer.from(base64String, "base64");
     fs.writeFileSync(filePath, buffer);
 
     // Public URL
@@ -305,15 +325,21 @@ exports.uploadProfileImageBase64 = async (req, res, next) => {
 
     // Update user profileImage
     let query = { _id: req.user.id };
-    const user = await User.findOneAndUpdate(query, { profileImage: publicUrl }, { new: true }).select('-password');
+    const user = await User.findOneAndUpdate(
+      query,
+      { profileImage: publicUrl },
+      { new: true },
+    ).select("-password");
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    return res.status(200).json({ success: true, data: { url: publicUrl, user } });
+    return res
+      .status(200)
+      .json({ success: true, data: { url: publicUrl, user } });
   } catch (err) {
-    console.error('Error in uploadProfileImageBase64:', err);
-    return next(new ErrorResponse('Failed to upload image', 500));
+    console.error("Error in uploadProfileImageBase64:", err);
+    return next(new ErrorResponse("Failed to upload image", 500));
   }
 };
 
@@ -324,76 +350,94 @@ exports.updateProfile = async (req, res, next) => {
 
     // Build update object only with provided fields
     const update = {};
-    if (typeof name === 'string') update.name = name;
-    if (typeof phone === 'string') update.phone = phone;
+    if (typeof name === "string") update.name = name;
+    if (typeof phone === "string") update.phone = phone;
     if (profileImage) update.profileImage = profileImage;
-    
+
     // Allow parents to update children via /auth/profile as well
     if (Array.isArray(children)) {
       try {
         // Fetch user to verify role
-        const current = await User.findById(req.user.id).select('role userType');
-        const isParent = current && current.role === 'parent';
+        const current = await User.findById(req.user.id).select(
+          "role userType",
+        );
+        const isParent = current && current.role === "parent";
         if (!isParent) {
-          return res.status(403).json({ success: false, error: 'Only parent users can update children.' });
+          return res
+            .status(403)
+            .json({
+              success: false,
+              error: "Only parent users can update children.",
+            });
         }
         // Basic sanitization of children payload
         update.children = children
-          .filter(c => c && typeof c.name === 'string' && c.name.trim().length > 0)
-          .map(c => ({
+          .filter(
+            (c) => c && typeof c.name === "string" && c.name.trim().length > 0,
+          )
+          .map((c) => ({
             name: String(c.name).trim(),
             birthdate: c.birthdate ? new Date(c.birthdate) : undefined,
-            notes: typeof c.notes === 'string' ? c.notes : undefined
+            notes: typeof c.notes === "string" ? c.notes : undefined,
           }));
       } catch (e) {
-        return res.status(400).json({ success: false, error: 'Invalid children data' });
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid children data" });
       }
     }
-    
+
     // Handle both string and object address formats
     if (address) {
-      if (typeof address === 'string') {
+      if (typeof address === "string") {
         // If address is a string, store it in the street field
         update.address = { street: address };
-      } else if (typeof address === 'object') {
+      } else if (typeof address === "object") {
         update.address = {
           ...(address.street && { street: address.street }),
           ...(address.city && { city: address.city }),
           ...(address.province && { province: address.province }),
           ...(address.postalCode && { postalCode: address.postalCode }),
-          ...(address.country && { country: address.country })
+          ...(address.country && { country: address.country }),
         };
       }
     }
-    
+
     // Also handle location field for compatibility
-    if (req.body.location && typeof req.body.location === 'string') {
+    if (req.body.location && typeof req.body.location === "string") {
       if (!update.address) update.address = {};
       update.address.street = req.body.location;
     }
 
     if (Object.keys(update).length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+      return res
+        .status(400)
+        .json({ success: false, error: "No valid fields to update" });
     }
 
     // Check if req.user exists and has id
     if (!req.user || !req.user.id) {
-      return res.status(401).json({ success: false, error: 'Authentication required' });
+      return res
+        .status(401)
+        .json({ success: false, error: "Authentication required" });
     }
 
     // JWT lookup
     let query = { _id: req.user.id };
 
-    const user = await User.findOneAndUpdate(query, update, { new: true, runValidators: true }).select('-password');
+    const user = await User.findOneAndUpdate(query, update, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
 
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: "User not found" });
     }
 
     return res.status(200).json({ success: true, data: user });
   } catch (err) {
-    console.error('Error in updateProfile:', err);
-    return next(new ErrorResponse('Failed to update profile', 500));
+    console.error("Error in updateProfile:", err);
+    return next(new ErrorResponse("Failed to update profile", 500));
   }
 };
 
@@ -402,18 +446,27 @@ exports.updateChildren = async (req, res, next) => {
   try {
     const { children } = req.body;
     if (!Array.isArray(children)) {
-      return res.status(400).json({ success: false, error: 'Children must be an array.' });
+      return res
+        .status(400)
+        .json({ success: false, error: "Children must be an array." });
     }
     // Only allow parents to update children
     const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'parent') {
-      return res.status(403).json({ success: false, error: 'Only parent users can update children.' });
+    if (!user || user.role !== "parent") {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          error: "Only parent users can update children.",
+        });
     }
     user.children = children;
     await user.save();
     res.status(200).json({ success: true, data: user });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Failed to update children.' });
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to update children." });
   }
 };
 
@@ -422,7 +475,9 @@ exports.updateRole = async (req, res, next) => {
   try {
     const { role } = req.body || {};
     if (!role) {
-      return res.status(400).json({ success: false, error: 'role is required' });
+      return res
+        .status(400)
+        .json({ success: false, error: "role is required" });
     }
 
     const normalizedRole = normalizeRole(role);
@@ -433,30 +488,37 @@ exports.updateRole = async (req, res, next) => {
     const user = await User.findOneAndUpdate(
       query,
       { role: normalizedRole },
-      { new: true }
-    ).select('-password');
+      { new: true },
+    ).select("-password");
 
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    auditService.logSecurityEvent('USER_ROLE_UPDATED', {
+    auditService.logSecurityEvent("USER_ROLE_UPDATED", {
       userId: user._id?.toString?.() || req.user.id,
       newRole: normalizedRole,
-      via: req.user.firebase ? 'firebase' : 'jwt',
+      via: req.user.firebase ? "firebase" : "jwt",
       timestamp: new Date(),
     });
 
     // If moving to caregiver role, make sure a caregiver profile exists with proper name
-    if (normalizedRole === 'caregiver' && user && user._id) {
+    if (normalizedRole === "caregiver" && user && user._id) {
       try {
-        const existing = await Caregiver.findOne({ userId: user._id }).select('_id');
+        const existing = await Caregiver.findOne({ userId: user._id }).select(
+          "_id",
+        );
         if (!existing) {
           await Caregiver.create({
             userId: user._id,
-            name: (user.name && user.name.trim().length > 0) ? user.name.trim() : (user.email ? user.email.split('@')[0] : 'Caregiver'),
-            bio: '',
-            profileImage: user.profileImage || '',
+            name:
+              user.name && user.name.trim().length > 0
+                ? user.name.trim()
+                : user.email
+                  ? user.email.split("@")[0]
+                  : "Caregiver",
+            bio: "",
+            profileImage: user.profileImage || "",
             skills: [],
             certifications: [],
             ageCareRanges: [],
@@ -465,7 +527,7 @@ exports.updateRole = async (req, res, next) => {
             portfolio: { images: [], videos: [] },
             availability: {
               days: [],
-              hours: { start: '08:00', end: '18:00' },
+              hours: { start: "08:00", end: "18:00" },
               flexible: false,
               weeklySchedule: {
                 Monday: { available: false, timeSlots: [] },
@@ -474,8 +536,8 @@ exports.updateRole = async (req, res, next) => {
                 Thursday: { available: false, timeSlots: [] },
                 Friday: { available: false, timeSlots: [] },
                 Saturday: { available: false, timeSlots: [] },
-                Sunday: { available: false, timeSlots: [] }
-              }
+                Sunday: { available: false, timeSlots: [] },
+              },
             },
             verification: {
               profileComplete: false,
@@ -483,20 +545,27 @@ exports.updateRole = async (req, res, next) => {
               certificationsVerified: false,
               referencesVerified: false,
               trustScore: 0,
-              badges: []
+              badges: [],
             },
-            backgroundCheck: { status: 'not_started', provider: 'internal', checkTypes: [] }
+            backgroundCheck: {
+              status: "not_started",
+              provider: "internal",
+              checkTypes: [],
+            },
           });
         }
       } catch (cgErr) {
-        console.warn('Warning: failed to ensure caregiver profile on role update:', cgErr?.message || cgErr);
+        console.warn(
+          "Warning: failed to ensure caregiver profile on role update:",
+          cgErr?.message || cgErr,
+        );
       }
     }
 
     return res.status(200).json({ success: true, data: user });
   } catch (err) {
-    console.error('Error in updateRole:', err);
-    return next(new ErrorResponse('Failed to update role', 500));
+    console.error("Error in updateRole:", err);
+    return next(new ErrorResponse("Failed to update role", 500));
   }
 };
 
@@ -504,110 +573,125 @@ exports.updateRole = async (req, res, next) => {
 exports.getCurrentUser = async (req, res, next) => {
   try {
     // For JWT users
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id).select("-password");
     if (!user) {
-      return next(new ErrorResponse('User not found', 404));
+      return next(new ErrorResponse("User not found", 404));
     }
 
     // If self-access (user requesting own profile), return all info
     if (req.user.id === String(user._id)) {
       const obj = user.toObject ? user.toObject() : user;
-      const mappedRole = obj.role === 'caregiver' ? 'caregiver' : 'parent';
-      
+      const mappedRole = obj.role === "caregiver" ? "caregiver" : "parent";
+
       // Include email verification status
       const responseObj = {
         ...obj,
         role: mappedRole,
-        emailVerified: obj.verification?.emailVerified || false
+        emailVerified: obj.verification?.emailVerified || false,
       };
-      
+
       return res.status(200).json(responseObj);
     }
-    
+
     // For other users, only expose public info
     let publicUser = {
       _id: user._id,
       name: user.name,
       children: user.children,
-      status: user.status
+      status: user.status,
     };
-    
+
     // Include contact info only for admin or users with active contracts
     let includeContact = false;
-    if (req.user && (isAdmin(req.user) || (await hasActiveContractWithParent(req.user.id, user._id)))) {
+    if (
+      req.user &&
+      (isAdmin(req.user) ||
+        (await hasActiveContractWithParent(req.user.id, user._id)))
+    ) {
       includeContact = true;
     }
-    
+
     if (includeContact) {
       publicUser.email = user.email;
       publicUser.phone = user.phone;
     }
-    
-    const mappedRole = user.role === 'caregiver' ? 'caregiver' : 'parent';
+
+    const mappedRole = user.role === "caregiver" ? "caregiver" : "parent";
     return res.status(200).json({ ...publicUser, role: mappedRole });
   } catch (err) {
-    console.error('Error in getCurrentUser:', err);
-    next(new ErrorResponse('Server error', 500));
+    console.error("Error in getCurrentUser:", err);
+    next(new ErrorResponse("Server error", 500));
   }
 };
 
 // User login
 exports.login = async (req, res, next) => {
   const { email, password } = req.body;
-  console.log('🌐 Login request received:', { email, hasPassword: !!password });
+  console.log("🌐 Login request received:", { email, hasPassword: !!password });
 
   // Validate email & password
   if (!email || !password) {
-    console.log('❌ Missing credentials:', { email: !!email, password: !!password });
-    return res.status(400).json({ success: false, error: 'Please provide an email and password' });
+    console.log("❌ Missing credentials:", {
+      email: !!email,
+      password: !!password,
+    });
+    return res
+      .status(400)
+      .json({ success: false, error: "Please provide an email and password" });
   }
 
   try {
     // Check total user count first
     const userCount = await User.countDocuments();
-    console.log('📊 Total users in database:', userCount);
+    console.log("📊 Total users in database:", userCount);
 
     // Check for user
-    const user = await User.findOne({ email }).select('+password');
-    console.log('🔍 Login attempt for:', email, 'User found:', !!user);
+    const user = await User.findOne({ email }).select("+password");
+    console.log("🔍 Login attempt for:", email, "User found:", !!user);
 
     if (!user) {
-      console.log('❌ User not found in database for email:', email);
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      console.log("❌ User not found in database for email:", email);
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid credentials" });
     }
 
     // Check if email is verified
-    const isEmailVerified = user.verification?.emailVerified || user.emailVerified || false;
+    const isEmailVerified =
+      user.verification?.emailVerified || user.emailVerified || false;
     if (!isEmailVerified) {
-      console.log('❌ Email not verified for user:', email);
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Please verify your email before logging in. Check your inbox for the verification link.',
-        requiresVerification: true
+      console.log("❌ Email not verified for user:", email);
+      return res.status(401).json({
+        success: false,
+        error:
+          "Please verify your email before logging in. Check your inbox for the verification link.",
+        requiresVerification: true,
       });
     }
 
     // Check if password matches
     const isMatch = await user.comparePassword(password);
-    console.log('🔐 Password match for', email, ':', isMatch);
+    console.log("🔐 Password match for", email, ":", isMatch);
 
     if (!isMatch) {
-      console.log('❌ Invalid password for user:', email);
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      console.log("❌ Invalid password for user:", email);
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid credentials" });
     }
 
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user);
 
     // Set refresh token as HTTP-only cookie
-    res.cookie('refreshToken', refreshToken, {
+    res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    console.log('✅ Login successful for user:', email, 'ID:', user._id);
+    console.log("✅ Login successful for user:", email, "ID:", user._id);
     res.status(200).json({
       success: true,
       token: accessToken,
@@ -615,24 +699,34 @@ exports.login = async (req, res, next) => {
         id: user._id,
         email: user.email,
         name: user.name,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (err) {
-    console.error('💥 Login error:', err);
-    res.status(500).json({ success: false, error: 'Login failed: ' + err.message });
+    console.error("💥 Login error:", err);
+    res
+      .status(500)
+      .json({ success: false, error: "Login failed: " + err.message });
   }
 };
 
 // User registration
 exports.register = async (req, res, next) => {
   const { name, email, password, role } = req.body;
-  console.log('📝 Registration request:', { name, email, role, hasPassword: !!password });
+  console.log("📝 Registration request:", {
+    name,
+    email,
+    role,
+    hasPassword: !!password,
+  });
 
   try {
     // Normalize incoming role
     const normalizedRole = normalizeRole(role);
-    console.log('🔄 Normalized role:', { input: role, normalized: normalizedRole });
+    console.log("🔄 Normalized role:", {
+      input: role,
+      normalized: normalizedRole,
+    });
 
     // Create user
     const user = await User.create({
@@ -644,37 +738,48 @@ exports.register = async (req, res, next) => {
       lastName: req.body.lastName,
       middleInitial: req.body.middleInitial,
       birthDate: req.body.birthDate ? new Date(req.body.birthDate) : undefined,
-      phone: req.body.phone
+      phone: req.body.phone,
     });
-    console.log('✅ User created:', user.email, 'with role:', user.role);
+    console.log("✅ User created:", user.email, "with role:", user.role);
 
     // Send verification email
     try {
       const verificationToken = await user.createVerificationToken();
 
       // Send verification email
-      await emailService.sendVerificationEmail(user.email, user.name, verificationToken);
-      console.log('📧 Verification email sent to:', user.email);
-      
+      await emailService.sendVerificationEmail(
+        user.email,
+        user.name,
+        verificationToken,
+      );
+      console.log("📧 Verification email sent to:", user.email);
+
       // Log for development
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         console.log(`✉️ Email verification for ${user.email}:`);
         console.log(`Verification token: ${verificationToken}`);
       }
     } catch (emailError) {
-      console.warn('⚠️ Failed to send verification email:', emailError.message);
+      console.warn("⚠️ Failed to send verification email:", emailError.message);
     }
 
     // If registering as caregiver, auto-create a minimal caregiver profile using real name
-    if (normalizedRole === 'caregiver') {
+    if (normalizedRole === "caregiver") {
       try {
-        const existing = await Caregiver.findOne({ userId: user._id }).select('_id');
+        const existing = await Caregiver.findOne({ userId: user._id }).select(
+          "_id",
+        );
         if (!existing) {
           await Caregiver.create({
             userId: user._id,
-            name: (user.name && user.name.trim().length > 0) ? user.name.trim() : (user.email ? user.email.split('@')[0] : 'Caregiver'),
-            bio: '',
-            profileImage: user.profileImage || '',
+            name:
+              user.name && user.name.trim().length > 0
+                ? user.name.trim()
+                : user.email
+                  ? user.email.split("@")[0]
+                  : "Caregiver",
+            bio: "",
+            profileImage: user.profileImage || "",
             skills: [],
             certifications: [],
             ageCareRanges: [],
@@ -683,7 +788,7 @@ exports.register = async (req, res, next) => {
             portfolio: { images: [], videos: [] },
             availability: {
               days: [],
-              hours: { start: '08:00', end: '18:00' },
+              hours: { start: "08:00", end: "18:00" },
               flexible: false,
               weeklySchedule: {
                 Monday: { available: false, timeSlots: [] },
@@ -692,8 +797,8 @@ exports.register = async (req, res, next) => {
                 Thursday: { available: false, timeSlots: [] },
                 Friday: { available: false, timeSlots: [] },
                 Saturday: { available: false, timeSlots: [] },
-                Sunday: { available: false, timeSlots: [] }
-              }
+                Sunday: { available: false, timeSlots: [] },
+              },
             },
             verification: {
               profileComplete: false,
@@ -701,47 +806,65 @@ exports.register = async (req, res, next) => {
               certificationsVerified: false,
               referencesVerified: false,
               trustScore: 0,
-              badges: []
+              badges: [],
             },
-            backgroundCheck: { status: 'not_started', provider: 'internal', checkTypes: [] }
+            backgroundCheck: {
+              status: "not_started",
+              provider: "internal",
+              checkTypes: [],
+            },
           });
-          
+
           // Notify parents about new caregiver signup
           try {
             await notifyParentsOfNewCaregiver(user);
           } catch (notifyError) {
-            console.warn('Failed to notify parents of new caregiver:', notifyError.message);
+            console.warn(
+              "Failed to notify parents of new caregiver:",
+              notifyError.message,
+            );
           }
         }
       } catch (cgErr) {
         // Log but do not block registration
-        console.warn('Warning: failed to auto-create caregiver profile on register:', cgErr?.message || cgErr);
+        console.warn(
+          "Warning: failed to auto-create caregiver profile on register:",
+          cgErr?.message || cgErr,
+        );
       }
     }
 
-    console.log('✅ Registration successful for:', user.email);
+    console.log("✅ Registration successful for:", user.email);
     res.status(201).json({
       success: true,
-      message: 'Account created successfully. Please check your email to verify your account.',
-      requiresVerification: true
+      message:
+        "Account created successfully. Please check your email to verify your account.",
+      requiresVerification: true,
     });
   } catch (err) {
     // Provide clearer error responses for common failure cases
-    console.error('💥 Registration error:', err && (err.message || err));
+    console.error("💥 Registration error:", err && (err.message || err));
     // Duplicate email error from Mongo/Mongoose (various shapes)
-    const msg = (err && err.message) || '';
-    const isDupCode = err && (err.code === 11000 || err.code === 'E11000');
-    const isDupMsg = /duplicate key/i.test(msg) || /email already exists/i.test(msg);
+    const msg = (err && err.message) || "";
+    const isDupCode = err && (err.code === 11000 || err.code === "E11000");
+    const isDupMsg =
+      /duplicate key/i.test(msg) || /email already exists/i.test(msg);
     const isDupKey = err && (err.keyPattern?.email || err.keyValue?.email);
     if (isDupCode || isDupMsg || isDupKey) {
-      return res.status(409).json({ success: false, error: 'Email already exists' });
+      return res
+        .status(409)
+        .json({ success: false, error: "Email already exists" });
     }
     // Mongoose validation error
-    if (err && err.name === 'ValidationError') {
-      const details = Object.values(err.errors || {}).map(e => e.message);
-      return res.status(400).json({ success: false, error: 'Validation error', details });
+    if (err && err.name === "ValidationError") {
+      const details = Object.values(err.errors || {}).map((e) => e.message);
+      return res
+        .status(400)
+        .json({ success: false, error: "Validation error", details });
     }
-    return res.status(500).json({ success: false, error: 'Registration failed: ' + err.message });
+    return res
+      .status(500)
+      .json({ success: false, error: "Registration failed: " + err.message });
   }
 };
 
@@ -749,19 +872,19 @@ exports.register = async (req, res, next) => {
 exports.logout = async (req, res, next) => {
   try {
     // Clear refresh token cookie
-    res.clearCookie('refreshToken');
+    res.clearCookie("refreshToken");
 
     // Invalidate refresh token by incrementing tokenVersion
     await User.findByIdAndUpdate(req.user.id, {
-      $inc: { tokenVersion: 1 }
+      $inc: { tokenVersion: 1 },
     });
 
     res.status(200).json({
       success: true,
-      data: {}
+      data: {},
     });
   } catch (err) {
-    next(new ErrorResponse('Logout failed', 500));
+    next(new ErrorResponse("Logout failed", 500));
   }
 };
 
@@ -771,32 +894,31 @@ exports.refreshToken = async (req, res, next) => {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-      return next(new ErrorResponse('Not authorized', 401));
+      return next(new ErrorResponse("Not authorized", 401));
     }
 
     // Verify refresh token
     const decoded = jwt.verify(refreshToken, refreshTokenSecret);
 
     // Check if user exists and token version matches
-    const user = await User.findById(decoded.id).select('+tokenVersion');
+    const user = await User.findById(decoded.id).select("+tokenVersion");
 
     if (!user || user.tokenVersion !== decoded.tokenVersion) {
-      return next(new ErrorResponse('Not authorized', 401));
+      return next(new ErrorResponse("Not authorized", 401));
     }
 
     // Generate new access token
-    const accessToken = jwt.sign(
-      { id: user._id, role: user.role },
-      jwtSecret,
-      { expiresIn: jwtExpiry, algorithm: 'HS256' }
-    );
+    const accessToken = jwt.sign({ id: user._id, role: user.role }, jwtSecret, {
+      expiresIn: jwtExpiry,
+      algorithm: "HS256",
+    });
 
     res.status(200).json({
       success: true,
-      token: accessToken
+      token: accessToken,
     });
   } catch (err) {
-    next(new ErrorResponse('Not authorized', 401));
+    next(new ErrorResponse("Not authorized", 401));
   }
 };
 
@@ -805,7 +927,7 @@ exports.resetPassword = async (req, res, next) => {
   const { email } = req.body;
 
   if (!email) {
-    return next(new ErrorResponse('Please provide an email', 400));
+    return next(new ErrorResponse("Please provide an email", 400));
   }
 
   try {
@@ -815,50 +937,52 @@ exports.resetPassword = async (req, res, next) => {
     if (!user) {
       return res.status(200).json({
         success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.'
+        message:
+          "If an account with that email exists, a password reset link has been sent.",
       });
     }
 
     // Generate secure reset token
     const resetToken = await user.createPasswordResetToken();
-    
+
     try {
       // Send email with reset link
       await emailService.sendPasswordResetEmail(user.email, resetToken);
-      
+
       // Log for development
-      if (process.env.NODE_ENV === 'development') {
-        const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:19006'}/reset-password/${resetToken}`;
+      if (process.env.NODE_ENV === "development") {
+        const resetURL = `${process.env.FRONTEND_URL || "http://localhost:19006"}/reset-password/${resetToken}`;
         console.log(`🔑 Password reset for ${email}:`);
         console.log(`Reset URL: ${resetURL}`);
         console.log(`Token expires in 10 minutes`);
       }
-      
+
       res.status(200).json({
         success: true,
-        message: 'Password reset link sent to your email.'
+        message: "Password reset link sent to your email.",
       });
     } catch (emailError) {
-      console.error('Email send failed:', emailError.message);
-      
+      console.error("Email send failed:", emailError.message);
+
       // Fallback for development
-      if (process.env.NODE_ENV === 'development') {
-        const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:19006'}/reset-password/${resetToken}`;
+      if (process.env.NODE_ENV === "development") {
+        const resetURL = `${process.env.FRONTEND_URL || "http://localhost:19006"}/reset-password/${resetToken}`;
         console.log(`🔑 Email failed, password reset for ${email}:`);
         console.log(`Reset URL: ${resetURL}`);
-        
+
         res.status(200).json({
           success: true,
-          message: 'Password reset link generated. Check console in development mode.',
-          resetURL // Only in development
+          message:
+            "Password reset link generated. Check console in development mode.",
+          resetURL, // Only in development
         });
       } else {
-        throw new Error('Failed to send reset email');
+        throw new Error("Failed to send reset email");
       }
     }
   } catch (err) {
-    console.error('Reset password error:', err);
-    next(new ErrorResponse('Reset password failed', 500));
+    console.error("Reset password error:", err);
+    next(new ErrorResponse("Reset password failed", 500));
   }
 };
 
@@ -867,19 +991,21 @@ exports.checkEmailExists = async (req, res, next) => {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ success: false, error: 'Email is required' });
+    return res.status(400).json({ success: false, error: "Email is required" });
   }
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() }).select('_id');
-    
+    const user = await User.findOne({ email: email.toLowerCase() }).select(
+      "_id",
+    );
+
     res.status(200).json({
       success: true,
-      exists: !!user
+      exists: !!user,
     });
   } catch (err) {
-    console.error('Check email error:', err);
-    res.status(500).json({ success: false, error: 'Failed to check email' });
+    console.error("Check email error:", err);
+    res.status(500).json({ success: false, error: "Failed to check email" });
   }
 };
 
@@ -888,40 +1014,50 @@ exports.confirmPasswordReset = async (req, res, next) => {
   const { token, newPassword } = req.body;
 
   if (!token || !newPassword) {
-    return next(new ErrorResponse('Token and new password are required', 400));
+    return next(new ErrorResponse("Token and new password are required", 400));
   }
 
-  const minLength = process.env.NODE_ENV === 'production' ? 12 : 8;
+  const minLength = process.env.NODE_ENV === "production" ? 12 : 8;
   if (newPassword.length < minLength) {
-    return next(new ErrorResponse(`Password must be at least ${minLength} characters`, 400));
+    return next(
+      new ErrorResponse(
+        `Password must be at least ${minLength} characters`,
+        400,
+      ),
+    );
   }
-  
+
   // Production password strength validation
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === "production") {
     const hasUpper = /[A-Z]/.test(newPassword);
     const hasLower = /[a-z]/.test(newPassword);
     const hasNumber = /\d/.test(newPassword);
     const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
-    
+
     if (!hasUpper || !hasLower || !hasNumber || !hasSymbol) {
-      return next(new ErrorResponse('Password must contain uppercase, lowercase, number, and symbol', 400));
+      return next(
+        new ErrorResponse(
+          "Password must contain uppercase, lowercase, number, and symbol",
+          400,
+        ),
+      );
     }
   }
 
   try {
     // Hash the token to compare with stored hash
-    const hashedToken = require('crypto')
-      .createHash('sha256')
+    const hashedToken = require("crypto")
+      .createHash("sha256")
       .update(token)
-      .digest('hex');
+      .digest("hex");
 
     const user = await User.findOne({
       passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() }
+      passwordResetExpires: { $gt: Date.now() },
     });
 
     if (!user) {
-      return next(new ErrorResponse('Invalid or expired reset token', 400));
+      return next(new ErrorResponse("Invalid or expired reset token", 400));
     }
 
     // Set new password
@@ -929,27 +1065,28 @@ exports.confirmPasswordReset = async (req, res, next) => {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     user.passwordChangedAt = Date.now();
-    
+
     // Reset login attempts
     user.loginAttempts = 0;
     user.lockUntil = undefined;
-    
+
     await user.save();
 
     // Log security event
-    auditService.logSecurityEvent('PASSWORD_RESET_COMPLETED', {
+    auditService.logSecurityEvent("PASSWORD_RESET_COMPLETED", {
       userId: user._id.toString(),
       email: user.email,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     res.status(200).json({
       success: true,
-      message: 'Password has been reset successfully. You can now log in with your new password.'
+      message:
+        "Password has been reset successfully. You can now log in with your new password.",
     });
   } catch (err) {
-    console.error('Confirm password reset error:', err);
-    next(new ErrorResponse('Password reset failed', 500));
+    console.error("Confirm password reset error:", err);
+    next(new ErrorResponse("Password reset failed", 500));
   }
 };
 
@@ -958,75 +1095,86 @@ exports.verifyEmail = async (req, res, next) => {
   const { token } = req.params;
 
   if (!token) {
-    return next(new ErrorResponse('Verification token is required', 400));
+    return next(new ErrorResponse("Verification token is required", 400));
   }
 
   try {
-    console.log('🔍 Verifying token:', token);
-    
+    console.log("🔍 Verifying token:", token);
+
     // Hash the token to compare with stored hash
-    const hashedToken = require('crypto')
-      .createHash('sha256')
+    const hashedToken = require("crypto")
+      .createHash("sha256")
       .update(token)
-      .digest('hex');
-    
-    console.log('🔑 Hashed token:', hashedToken);
+      .digest("hex");
+
+    console.log("🔑 Hashed token:", hashedToken);
 
     // First check if any user has this token (regardless of expiry)
     const userWithToken = await User.findOne({
-      'verification.token': hashedToken
+      "verification.token": hashedToken,
     });
-    
-    console.log('👤 User with token found:', !!userWithToken);
+
+    console.log("👤 User with token found:", !!userWithToken);
     if (userWithToken) {
-      console.log('⏰ Token expires at:', userWithToken.verification.expires);
-      console.log('🕐 Current time:', new Date());
-      console.log('✅ Token valid:', userWithToken.verification.expires > Date.now());
+      console.log("⏰ Token expires at:", userWithToken.verification.expires);
+      console.log("🕐 Current time:", new Date());
+      console.log(
+        "✅ Token valid:",
+        userWithToken.verification.expires > Date.now(),
+      );
     }
 
     const user = await User.findOne({
-      'verification.token': hashedToken,
-      'verification.expires': { $gt: Date.now() }
+      "verification.token": hashedToken,
+      "verification.expires": { $gt: Date.now() },
     });
 
     if (!user) {
       // Check if token exists but expired
       if (userWithToken) {
-        console.log('⚠️ Token expired for user:', userWithToken.email);
-        return next(new ErrorResponse('Verification token has expired. Please request a new verification email.', 400));
+        console.log("⚠️ Token expired for user:", userWithToken.email);
+        return next(
+          new ErrorResponse(
+            "Verification token has expired. Please request a new verification email.",
+            400,
+          ),
+        );
       }
-      console.log('❌ No user found with valid token');
-      return next(new ErrorResponse('Invalid or expired verification token', 400));
+      console.log("❌ No user found with valid token");
+      return next(
+        new ErrorResponse("Invalid or expired verification token", 400),
+      );
     }
 
     // Mark email as verified
     user.verification.emailVerified = true;
     user.verification.token = undefined;
     user.verification.expires = undefined;
-    
+
     await user.save();
 
     // Generate tokens for auto-login
     const { accessToken, refreshToken } = generateTokens(user);
 
     // Set refresh token cookie
-    res.cookie('refreshToken', refreshToken, {
+    res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    console.log('✅ Email verified for:', user.email);
-    
+    console.log("✅ Email verified for:", user.email);
+
     // Check if request is from browser (has Accept header) or app
-    const isFromBrowser = req.headers.accept && req.headers.accept.includes('text/html');
-    
+    const isFromBrowser =
+      req.headers.accept && req.headers.accept.includes("text/html");
+
     if (isFromBrowser) {
       // Try Expo Go first, then custom scheme
       const expoURL = `exp://192.168.1.5:8081/--/verify-email?token=${token}`;
       const customURL = `iyaya://verify-email?token=${token}`;
-      
+
       // Create a redirect page that tries both
       const redirectHTML = `
         <!DOCTYPE html>
@@ -1054,27 +1202,27 @@ exports.verifyEmail = async (req, res, next) => {
         </body>
         </html>
       `;
-      
-      res.setHeader('Content-Type', 'text/html');
+
+      res.setHeader("Content-Type", "text/html");
       res.status(200).send(redirectHTML);
     } else {
       // Return JSON for app requests
       res.status(200).json({
         success: true,
-        message: 'Email verified successfully',
+        message: "Email verified successfully",
         token: accessToken,
         user: {
           id: user._id,
           email: user.email,
           name: user.name,
           role: user.role,
-          emailVerified: true
-        }
+          emailVerified: true,
+        },
       });
     }
   } catch (err) {
-    console.error('Email verification error:', err);
-    next(new ErrorResponse('Email verification failed', 500));
+    console.error("Email verification error:", err);
+    next(new ErrorResponse("Email verification failed", 500));
   }
 };
 
@@ -1083,34 +1231,40 @@ exports.resendVerification = async (req, res, next) => {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ success: false, error: 'Email is required' });
+    return res.status(400).json({ success: false, error: "Email is required" });
   }
 
   try {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: "User not found" });
     }
 
     if (user.verification?.emailVerified) {
-      return res.status(400).json({ success: false, error: 'Email is already verified' });
+      return res
+        .status(400)
+        .json({ success: false, error: "Email is already verified" });
     }
 
     // Generate new verification token
     const verificationToken = await user.createVerificationToken();
 
     // Send verification email
-    await emailService.sendVerificationEmail(user.email, user.name, verificationToken);
-    console.log('📧 New verification email sent to:', user.email);
+    await emailService.sendVerificationEmail(
+      user.email,
+      user.name,
+      verificationToken,
+    );
+    console.log("📧 New verification email sent to:", user.email);
 
     res.status(200).json({
       success: true,
-      message: 'Verification email sent successfully'
+      message: "Verification email sent successfully",
     });
   } catch (err) {
-    console.error('Resend verification error:', err);
-    next(new ErrorResponse('Failed to resend verification email', 500));
+    console.error("Resend verification error:", err);
+    next(new ErrorResponse("Failed to resend verification email", 500));
   }
 };
 
@@ -1118,15 +1272,15 @@ exports.resendVerification = async (req, res, next) => {
 exports.sendCustomVerification = async (req, res, next) => {
   try {
     const { email, name, role, uid } = req.body;
-    
+
     const verifyURL = `https://iyayav0.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=${uid}&continueUrl=${encodeURIComponent(`exp://192.168.1.11:8081/--/verify-success?role=${role}`)}`;
     const expoGoURL = `exp://192.168.1.11:8081/--/verify-success?role=${role}`;
     const customSchemeURL = `iyaya://verify-success?role=${role}`;
-    
+
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: email,
-      subject: 'Verify Your iYaya Account',
+      subject: "Verify Your iYaya Account",
       html: `
 <!DOCTYPE html>
 <html>
@@ -1189,24 +1343,24 @@ exports.sendCustomVerification = async (req, res, next) => {
   </table>
 </body>
 </html>
-      `
+      `,
     };
-    
-    const nodemailer = require('nodemailer');
+
+    const nodemailer = require("nodemailer");
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      service: "gmail",
       auth: {
         user: process.env.EMAIL_USERNAME,
-        pass: process.env.EMAIL_PASSWORD
-      }
+        pass: process.env.EMAIL_PASSWORD,
+      },
     });
-    
+
     await transporter.sendMail(mailOptions);
-    
-    res.status(200).json({ success: true, message: 'Verification email sent' });
+
+    res.status(200).json({ success: true, message: "Verification email sent" });
   } catch (err) {
-    console.error('Custom verification email error:', err);
-    next(new ErrorResponse('Failed to send verification email', 500));
+    console.error("Custom verification email error:", err);
+    next(new ErrorResponse("Failed to send verification email", 500));
   }
 };
 
@@ -1215,30 +1369,34 @@ exports.getFirebaseProfile = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json({ success: false, error: 'No token provided' });
+      return res
+        .status(401)
+        .json({ success: false, error: "No token provided" });
     }
-    
+
     // Extract token from Bearer header
-    const token = authHeader.split(' ')[1];
-    
+    const token = authHeader.split(" ")[1];
+
     // Decode Firebase token to get UID
     try {
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      const payload = JSON.parse(
+        Buffer.from(token.split(".")[1], "base64").toString(),
+      );
       const firebaseUid = payload.user_id || payload.uid;
-      
+
       if (firebaseUid) {
         // Find user by Firebase UID with complete profile
-        const user = await User.findOne({ firebaseUid }).select('-password');
-        console.log('🔍 Looking for user with Firebase UID:', firebaseUid);
-        console.log('👤 Found user in MongoDB:', !!user);
+        const user = await User.findOne({ firebaseUid }).select("-password");
+        console.log("🔍 Looking for user with Firebase UID:", firebaseUid);
+        console.log("👤 Found user in MongoDB:", !!user);
         if (user) {
-          console.log('📋 User data:', {
+          console.log("📋 User data:", {
             name: user.name,
             firstName: user.firstName,
             lastName: user.lastName,
             birthDate: user.birthDate,
             phone: user.phone,
-            role: user.role ?? null
+            role: user.role ?? null,
           });
           let profileData = {
             id: user._id,
@@ -1255,12 +1413,14 @@ exports.getFirebaseProfile = async (req, res, next) => {
             address: user.address,
             location: user.address?.street || user.address,
             children: user.children || [],
-            emailVerified: user.verification?.emailVerified || false
+            emailVerified: user.verification?.emailVerified || false,
           };
-          
+
           // If caregiver, include caregiver-specific data
-          if (user.role === 'caregiver') {
-            const caregiverProfile = await Caregiver.findOne({ userId: user._id });
+          if (user.role === "caregiver") {
+            const caregiverProfile = await Caregiver.findOne({
+              userId: user._id,
+            });
             if (caregiverProfile) {
               profileData.caregiverProfile = {
                 bio: caregiverProfile.bio,
@@ -1268,23 +1428,23 @@ exports.getFirebaseProfile = async (req, res, next) => {
                 certifications: caregiverProfile.certifications,
                 ageCareRanges: caregiverProfile.ageCareRanges,
                 availability: caregiverProfile.availability,
-                verification: caregiverProfile.verification
+                verification: caregiverProfile.verification,
               };
             }
           }
-          
+
           return res.status(200).json(profileData);
         }
       }
     } catch (decodeError) {
-      console.warn('Token decode failed:', decodeError.message);
+      console.warn("Token decode failed:", decodeError.message);
     }
-    
+
     // Return default profile if user not found
     res.status(200).json({ role: null });
   } catch (err) {
-    console.error('Firebase profile error:', err);
-    next(new ErrorResponse('Failed to get Firebase profile', 500));
+    console.error("Firebase profile error:", err);
+    next(new ErrorResponse("Failed to get Firebase profile", 500));
   }
 };
 
@@ -1292,34 +1452,39 @@ exports.getFirebaseProfile = async (req, res, next) => {
 exports.getUserByFirebaseUid = async (req, res, next) => {
   try {
     const { firebaseUid } = req.params;
-    
+
     if (!firebaseUid) {
-      return res.status(400).json({ success: false, error: 'Firebase UID is required' });
+      return res
+        .status(400)
+        .json({ success: false, error: "Firebase UID is required" });
     }
-    
+
     // Find user by Firebase UID
-    const user = await User.findOne({ firebaseUid }).select('name firstName lastName email profileImage role');
-    
+    const user = await User.findOne({ firebaseUid }).select(
+      "name firstName lastName email profileImage role",
+    );
+
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: "User not found" });
     }
-    
+
     // Return basic profile info for messaging
     const profile = {
       id: user._id,
       firebaseUid: user.firebaseUid,
-      name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      name:
+        user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
       profileImage: user.profileImage,
-      role: user.role
+      role: user.role,
     };
-    
+
     res.status(200).json({ success: true, data: profile });
   } catch (err) {
-    console.error('Get user by Firebase UID error:', err);
-    next(new ErrorResponse('Failed to get user profile', 500));
+    console.error("Get user by Firebase UID error:", err);
+    next(new ErrorResponse("Failed to get user profile", 500));
   }
 };
 

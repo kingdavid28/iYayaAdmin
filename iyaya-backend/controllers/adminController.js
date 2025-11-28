@@ -41,7 +41,11 @@ const computeTotalHours = (record) => {
     (typeof record.totalHours === "number" ? record.totalHours : undefined) ??
     (typeof record.total_hours === "number" ? record.total_hours : undefined);
 
-  if (typeof directHours === "number" && !Number.isNaN(directHours) && directHours > 0) {
+  if (
+    typeof directHours === "number" &&
+    !Number.isNaN(directHours) &&
+    directHours > 0
+  ) {
     return directHours;
   }
 
@@ -81,7 +85,7 @@ const normalizeJob = (record) => {
   if (!record) return null;
 
   // Debug: Log what we're getting from the database
-  console.log('[normalizeJob] Raw record:', {
+  console.log("[normalizeJob] Raw record:", {
     id: record.id,
     title: record.title,
     parent: record.parent,
@@ -94,14 +98,18 @@ const normalizeJob = (record) => {
   let parentInfo = null;
   if (record.parent) {
     // This comes from the parent:parent_id(id, name, email) join
-    parentInfo = Array.isArray(record.parent) ? record.parent[0] : record.parent;
+    parentInfo = Array.isArray(record.parent)
+      ? record.parent[0]
+      : record.parent;
   }
 
   // Handle caregiver information from the join
   let caregiverInfo = null;
   if (record.caregiver) {
     // This comes from the caregiver:caregiver_id(id, name, email) join
-    caregiverInfo = Array.isArray(record.caregiver) ? record.caregiver[0] : record.caregiver;
+    caregiverInfo = Array.isArray(record.caregiver)
+      ? record.caregiver[0]
+      : record.caregiver;
   }
 
   return {
@@ -122,8 +130,7 @@ const handleSupabaseError = (error, context = "Supabase operation") => {
 const sanitizeEmail = (email) =>
   typeof email === "string" ? email.trim().toLowerCase() : undefined;
 
-const safeString = (str) =>
-  typeof str === "string" ? str.trim() : undefined;
+const safeString = (str) => (typeof str === "string" ? str.trim() : undefined);
 
 const trimToString = (value) => (typeof value === "string" ? value.trim() : "");
 
@@ -370,9 +377,13 @@ exports.updatePaymentStatus = async (req, res) => {
       }
     }
 
-    const updated = await PaymentService.updateStatus(paymentId, normalizedStatus, {
-      notes: trimToString(notes) || null,
-    });
+    const updated = await PaymentService.updateStatus(
+      paymentId,
+      normalizedStatus,
+      {
+        notes: trimToString(notes) || null,
+      },
+    );
 
     await AuditLogService.create({
       admin_id: adminId,
@@ -475,7 +486,7 @@ exports.listJobs = async (req, res) => {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        hasMore: (result.page * result.limit) < result.total,
+        hasMore: result.page * result.limit < result.total,
       },
       stats: result.stats,
     });
@@ -1038,7 +1049,7 @@ exports.listJobs = async (req, res) => {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        hasMore: (result.page * result.limit) < result.total,
+        hasMore: result.page * result.limit < result.total,
       },
       stats: result.stats,
     });
@@ -1049,13 +1060,21 @@ exports.listJobs = async (req, res) => {
 
 exports.createJob = async (req, res) => {
   try {
-    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
+    const {
+      title,
+      description,
+      location,
+      budget,
+      hourly_rate,
+      parent_id,
+      caregiver_id,
+    } = req.body || {};
     const adminId = req.user.id;
 
     if (!title || !description || !location) {
       return res.status(400).json({
         success: false,
-        error: "Title, description, and location are required"
+        error: "Title, description, and location are required",
       });
     }
 
@@ -1067,7 +1086,7 @@ exports.createJob = async (req, res) => {
       hourly_rate: hourly_rate || null,
       parent_id: parent_id || null,
       caregiver_id: caregiver_id || null,
-      status: 'open',
+      status: "open",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -1118,7 +1137,15 @@ exports.getJobById = async (req, res) => {
 exports.updateJob = async (req, res) => {
   try {
     const { jobId } = req.params;
-    const { title, description, location, budget, hourly_rate, parent_id, caregiver_id } = req.body || {};
+    const {
+      title,
+      description,
+      location,
+      budget,
+      hourly_rate,
+      parent_id,
+      caregiver_id,
+    } = req.body || {};
     const adminId = req.user.id;
 
     const job = await JobService.findById(jobId);
@@ -1133,8 +1160,8 @@ exports.updateJob = async (req, res) => {
       ...(title ? { title } : {}),
       ...(description ? { description } : {}),
       ...(location ? { location } : {}),
-      ...(typeof budget === 'number' ? { budget } : {}),
-      ...(typeof hourly_rate === 'number' ? { hourly_rate } : {}),
+      ...(typeof budget === "number" ? { budget } : {}),
+      ...(typeof hourly_rate === "number" ? { hourly_rate } : {}),
       ...(parent_id ? { parent_id } : {}),
       ...(caregiver_id ? { caregiver_id } : {}),
       updated_at: new Date().toISOString(),
@@ -1520,7 +1547,7 @@ exports.listAuditLogs = async (req, res) => {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        hasMore: (result.page * result.limit) < result.total,
+        hasMore: result.page * result.limit < result.total,
       },
     });
   } catch (error) {
@@ -1536,12 +1563,7 @@ exports.updateBookingStatus = async (req, res) => {
     const adminId = req.user.id;
 
     // Constrained by DB enum: pending, confirmed, completed, cancelled
-    const validStatuses = [
-      "pending",
-      "confirmed",
-      "completed",
-      "cancelled",
-    ];
+    const validStatuses = ["pending", "confirmed", "completed", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -1680,10 +1702,7 @@ exports.cancelBooking = async (req, res) => {
       reason,
       // DB enum: pending, confirmed, completed, cancelled
       // Allow cancelling from pending or confirmed only
-      allowedCurrentStatuses: [
-        "pending",
-        "confirmed",
-      ],
+      allowedCurrentStatuses: ["pending", "confirmed"],
       errorHint: "Only pending or confirmed bookings can be cancelled",
     });
 

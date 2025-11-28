@@ -1,17 +1,19 @@
-const { supabase } = require('../config/supabase');
+const { supabase } = require("../config/supabase");
 
-const sanitizeSearchTerm = (value = '') =>
+const sanitizeSearchTerm = (value = "") =>
   value
     .trim()
-    .replace(/[\0\n\r\t\f\v]/g, ' ')
-    .replace(/[%_]/g, match => `\\${match}`);
+    .replace(/[\0\n\r\t\f\v]/g, " ")
+    .replace(/[%_]/g, (match) => `\\${match}`);
 
-const mapChildRecord = record => {
+const mapChildRecord = (record) => {
   if (!record) {
     return null;
   }
 
-  const parent = Array.isArray(record.parent) ? record.parent[0] : record.parent;
+  const parent = Array.isArray(record.parent)
+    ? record.parent[0]
+    : record.parent;
 
   return {
     id: record.id,
@@ -37,12 +39,16 @@ const mapChildRecord = record => {
 const listChildren = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
-    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 20, 1),
+      100,
+    );
+    const search =
+      typeof req.query.search === "string" ? req.query.search : undefined;
     const offset = (page - 1) * limit;
 
     let query = supabase
-      .from('children')
+      .from("children")
       .select(
         `
           id,
@@ -57,17 +63,17 @@ const listChildren = async (req, res) => {
           updated_at,
           parent:parent_id(id,name,email)
         `,
-        { count: 'exact' }
+        { count: "exact" },
       )
-      .order('created_at', { ascending: false })
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (search && search.trim()) {
       const sanitized = sanitizeSearchTerm(search);
       query = query.or(
-        ['name', 'parent_id.name', 'parent_id.email']
-          .map(column => `${column}.ilike.%${sanitized}%`)
-          .join(',')
+        ["name", "parent_id.name", "parent_id.email"]
+          .map((column) => `${column}.ilike.%${sanitized}%`)
+          .join(","),
       );
     }
 
@@ -81,16 +87,16 @@ const listChildren = async (req, res) => {
       success: true,
       data: {
         children: (data || []).map(mapChildRecord),
-        total: typeof count === 'number' ? count : (data || []).length,
+        total: typeof count === "number" ? count : (data || []).length,
         page,
         limit,
       },
     });
   } catch (error) {
-    console.error('[adminChildrenController.listChildren] error', error);
+    console.error("[adminChildrenController.listChildren] error", error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch children',
+      error: error.message || "Failed to fetch children",
     });
   }
 };
@@ -100,7 +106,7 @@ const getChildById = async (req, res) => {
     const { id } = req.params;
 
     const { data, error } = await supabase
-      .from('children')
+      .from("children")
       .select(
         `
           id,
@@ -114,9 +120,9 @@ const getChildById = async (req, res) => {
           created_at,
           updated_at,
           parent:parent_id(id,name,email)
-        `
+        `,
       )
-      .eq('id', id)
+      .eq("id", id)
       .maybeSingle();
 
     if (error) {
@@ -124,15 +130,15 @@ const getChildById = async (req, res) => {
     }
 
     if (!data) {
-      return res.status(404).json({ success: false, error: 'Child not found' });
+      return res.status(404).json({ success: false, error: "Child not found" });
     }
 
     res.status(200).json({ success: true, data: mapChildRecord(data) });
   } catch (error) {
-    console.error('[adminChildrenController.getChildById] error', error);
+    console.error("[adminChildrenController.getChildById] error", error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch child',
+      error: error.message || "Failed to fetch child",
     });
   }
 };
@@ -144,39 +150,41 @@ const updateChild = async (req, res) => {
 
     const updates = {};
 
-    if (typeof notes === 'string') {
+    if (typeof notes === "string") {
       const trimmed = notes.trim();
       updates.notes = trimmed.length ? trimmed : null;
     }
-    if (typeof specialNeeds === 'string') {
+    if (typeof specialNeeds === "string") {
       const trimmed = specialNeeds.trim();
       updates.special_needs = trimmed.length ? trimmed : null;
     }
-    if (typeof allergies === 'string') {
+    if (typeof allergies === "string") {
       const trimmed = allergies.trim();
       updates.allergies = trimmed.length ? trimmed : null;
     }
     if (emergencyContact !== undefined) {
-      if (emergencyContact === null || typeof emergencyContact === 'object') {
+      if (emergencyContact === null || typeof emergencyContact === "object") {
         updates.emergency_contact = emergencyContact;
       } else {
         return res.status(400).json({
           success: false,
-          error: 'emergencyContact must be an object or null',
+          error: "emergencyContact must be an object or null",
         });
       }
     }
 
     if (!Object.keys(updates).length) {
-      return res.status(400).json({ success: false, error: 'No fields to update' });
+      return res
+        .status(400)
+        .json({ success: false, error: "No fields to update" });
     }
 
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
-      .from('children')
+      .from("children")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select(
         `
           id,
@@ -190,7 +198,7 @@ const updateChild = async (req, res) => {
           created_at,
           updated_at,
           parent:parent_id(id,name,email)
-        `
+        `,
       )
       .maybeSingle();
 
@@ -199,15 +207,15 @@ const updateChild = async (req, res) => {
     }
 
     if (!data) {
-      return res.status(404).json({ success: false, error: 'Child not found' });
+      return res.status(404).json({ success: false, error: "Child not found" });
     }
 
     res.status(200).json({ success: true, data: mapChildRecord(data) });
   } catch (error) {
-    console.error('[adminChildrenController.updateChild] error', error);
+    console.error("[adminChildrenController.updateChild] error", error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to update child',
+      error: error.message || "Failed to update child",
     });
   }
 };
@@ -216,7 +224,7 @@ const deleteChild = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error } = await supabase.from('children').delete().eq('id', id);
+    const { error } = await supabase.from("children").delete().eq("id", id);
 
     if (error) {
       throw error;
@@ -224,10 +232,10 @@ const deleteChild = async (req, res) => {
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('[adminChildrenController.deleteChild] error', error);
+    console.error("[adminChildrenController.deleteChild] error", error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to delete child',
+      error: error.message || "Failed to delete child",
     });
   }
 };
