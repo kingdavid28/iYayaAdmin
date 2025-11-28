@@ -30,6 +30,10 @@ export default ({ config }) => {
 
   return {
     ...config,
+    // Android package name
+    android: {
+      package: 'com.kingdavid28.iyayaadmin'
+    },
     // Production optimizations
     ...(isProduction && {
       // Disable source maps in production for performance
@@ -80,6 +84,11 @@ export default ({ config }) => {
       // Environment
       ENV: process.env.ENV || env,
       NODE_ENV: env,
+      
+      // EAS Configuration
+      eas: {
+        projectId: '4c499015-5b66-4095-8bd0-da8eba7808ba'
+      },
     },
   };
 };

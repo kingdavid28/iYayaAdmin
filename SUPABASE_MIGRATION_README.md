@@ -301,3 +301,6 @@ git push origin main
    │   - Network:  http://192.168.100.35:3000   │
    │                                            │
    │   Copied local address to clipboard! 
+
+   npx eas build --platform android --profile production
+   npx eas build --platform android --profile production
