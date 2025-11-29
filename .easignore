@@ -1,0 +1,16 @@
+# .easignore 
+ 
+# Node modules 
+node_modules/ 
+ 
+# Build outputs 
+dist/ 
+build/ 
+.expo/ 
+web-build/ 
+web-report/ 
+coverage/ 
+ 
+# Environment files 
+.env* 
+!.env.production 
