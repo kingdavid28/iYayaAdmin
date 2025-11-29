@@ -3,10 +3,12 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      nodejs: 24  # Changed from 18 to 16 for better compatibility
+      nodejs: 24  # Match EB environment platform
     commands:
+      - echo Clearing npm cache...
+      - npm cache clean --force
       - echo Installing Node.js dependencies...
-      - npm install
+      - npm install --no-optional
   build:
     commands:
       - echo Build started on `date`
