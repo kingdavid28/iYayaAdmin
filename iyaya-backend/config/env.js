@@ -270,6 +270,6 @@ const config = {
 };
 
 // Run validation immediately
-validateEnv();
+// validateEnv(); // Temporarily disabled for debugging
 
 module.exports = config;

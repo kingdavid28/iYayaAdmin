@@ -1,6 +1,10 @@
 // At the top of your serverSupabase.js
 require("dotenv").config();
 
+console.log('Starting server...');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+
 const express = require("express");
 const { app } = require("./app"); // Import your app configuration
 
