@@ -94,6 +94,17 @@ if (error) {
 
 // Enhanced validation function
 const validateEnv = () => {
+  console.log('=== ENVIRONMENT DEBUG ===');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('PORT:', process.env.PORT);
+  console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
+  console.log('EMAIL_HOST:', process.env.EMAIL_HOST);
+  console.log('EMAIL_PORT:', process.env.EMAIL_PORT);
+  console.log('EMAIL_FROM:', process.env.EMAIL_FROM);
+  console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+  console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  console.log('========================');
+
   const requiredVariables = [
     "PORT",
     "NODE_ENV",
