@@ -10,11 +10,9 @@ app.get("/health", (req, res) => {
     status: "OK",
     timestamp: new Date().toISOString(),
     service: "iyaya-backend",
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'production',
   });
 });
 
 // Export for Vercel serverless
-module.exports = app;
-
 module.exports = app;
