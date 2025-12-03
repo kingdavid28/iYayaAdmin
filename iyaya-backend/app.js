@@ -103,7 +103,7 @@ const getExpoGoOrigins = () => {
     'exp://172.16.0.10:19000',
     'exp://localhost:19000',
     'exp://127.0.0.1:19000',
-    'https://iyayaadminbackend-env.eba-vnpkdfxb.us-east-1.elasticbeanstalk.com',
+    'https://iyaya-backend-8k1q0bnbg-reycelrcentino-1494s-projects.vercel.app',
     'https://i-yaya-admin.vercel.app',
     'http://192.168.1.101:19000',
     'http://192.168.1.101:8081',
