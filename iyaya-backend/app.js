@@ -302,8 +302,9 @@ app.use((err, req, res, next) => {
   res.status(statusCode).json(response);
 });
 
-// Initialize Socket.IO when server starts
-const server = require('http').createServer(app);
-socketService.initialize(server);
+// Socket.IO is disabled for Vercel serverless compatibility
+// Uncomment below if deploying to a traditional server environment
+// const server = require('http').createServer(app);
+// socketService.initialize(server);
 
-module.exports = { app, server };
+module.exports = { app };

@@ -1,29 +1,20 @@
 // At the top of your serverSupabase.js
 require("dotenv").config();
 
-console.log('Starting server...');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('PORT:', process.env.PORT);
-
 const express = require("express");
 const { app } = require("./app"); // Import your app configuration
 
-// Get port from environment variable or default to 8081
-const port = process.env.PORT || 5000;
-
-// Health check endpoint (REQUIRED for Elastic Beanstalk)
+// Health check endpoint (REQUIRED for Vercel)
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
     timestamp: new Date().toISOString(),
     service: "iyaya-backend",
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// Start server
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Iyaya Backend running on port ${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
-});
+// Export for Vercel serverless
+module.exports = app;
 
 module.exports = app;

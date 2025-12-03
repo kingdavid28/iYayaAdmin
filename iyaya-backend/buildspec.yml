@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      nodejs: 24  # The buildspec fix is ready - need to commit
+      nodejs: 24  # Compatible with Amazon Linux 2 environment is ready - need to commit
     commands:
       - echo Installing Node.js dependencies...
       - npm install --no-optional
