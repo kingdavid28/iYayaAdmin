@@ -56,7 +56,7 @@ export const resolveDevHost = (): string | undefined => {
 const rawBaseUrl =
   getEnvVar('EXPO_PUBLIC_API_URL') ??
   (__DEV__ ? resolveDevHost() : undefined) ??
-  'https://your-production-api.example.com';
+  'https://iyaya-backend-8k1q0bnbg-reycelrcentino-1494s-projects.vercel.app';
 
 export const apiBaseUrl = rawBaseUrl.replace(/\/$/, '');
 
