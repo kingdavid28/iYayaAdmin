@@ -305,4 +305,4 @@ app.use((err, req, res, next) => {
 // const server = require('http').createServer(app);
 // socketService.initialize(server);
 
-module.exports = { app };
+module.exports = app;
