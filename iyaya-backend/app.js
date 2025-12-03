@@ -6,7 +6,6 @@ const helmet = require('helmet');
 const hpp = require('hpp');
 const cookieParser = require('cookie-parser');
 const { rateLimit } = require('express-rate-limit');
-const xss = require('xss-clean');
 const compression = require('compression');
 const morgan = require('morgan');
 const { authenticate, authorize } = require('./middleware/auth');
@@ -164,7 +163,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Data sanitization
-app.use(xss());
 app.use(hpp());
 
 // Compression
