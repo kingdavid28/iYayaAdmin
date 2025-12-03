@@ -141,8 +141,13 @@ export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) 
                 value={formData.name}
                 onChangeText={(value) => updateFormData('name', value)}
                 mode="outlined"
+                autoComplete="name"
+                textContentType="name"
                 style={styles.input}
                 disabled={loading}
+                // @ts-ignore - Web-only props
+                id="name"
+                name="name"
               />
 
               <TextInput
@@ -152,8 +157,13 @@ export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) 
                 mode="outlined"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
                 style={styles.input}
                 disabled={loading}
+                // @ts-ignore - Web-only props
+                id="email"
+                name="email"
               />
 
               <Text variant="bodyMedium" style={styles.roleLabel}>
@@ -183,8 +193,13 @@ export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) 
                 onChangeText={(value) => updateFormData('password', value)}
                 mode="outlined"
                 secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
                 style={styles.input}
                 disabled={loading}
+                // @ts-ignore - Web-only props
+                id="password"
+                name="password"
               />
 
               <TextInput
@@ -193,8 +208,13 @@ export default function AdminSignupScreen({navigation}: AdminSignupScreenProps) 
                 onChangeText={(value) => updateFormData('confirmPassword', value)}
                 mode="outlined"
                 secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
                 style={styles.input}
                 disabled={loading}
+                // @ts-ignore - Web-only props
+                id="confirmPassword"
+                name="confirmPassword"
               />
 
               <Button

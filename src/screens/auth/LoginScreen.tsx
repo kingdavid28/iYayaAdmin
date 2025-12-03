@@ -74,8 +74,13 @@ export default function LoginScreen({navigation}: LoginScreenProps) {
                 mode="outlined"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
                 style={styles.input}
                 disabled={loading}
+                // @ts-ignore - Web-only props
+                id="email"
+                name="email"
               />
 
               <TextInput
@@ -84,8 +89,13 @@ export default function LoginScreen({navigation}: LoginScreenProps) {
                 onChangeText={setPassword}
                 mode="outlined"
                 secureTextEntry
+                autoComplete="current-password"
+                textContentType="password"
                 style={styles.input}
                 disabled={loading}
+                // @ts-ignore - Web-only props
+                id="password"
+                name="password"
               />
 
               <Button
