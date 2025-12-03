@@ -1,11 +1,7 @@
 {
   "outputDirectory": "dist",
-  "buildCommand": "echo 'Using pre-built dist folder'",
+  "buildCommand": "npm run build:prod",
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://iyayaadminbackend-env.eba-vnpkdfxb.us-east-1.elasticbeanstalk.com/api/$1"
-    },
     {
       "source": "(.*)",
       "destination": "/index.html"
