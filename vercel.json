@@ -1,6 +1,6 @@
 {
   "outputDirectory": "dist",
-  "buildCommand": "rm -rf dist && npm run build:prod",
+  "buildCommand": "npm run build:prod",
   "rewrites": [
     {
       "source": "(.*)",
