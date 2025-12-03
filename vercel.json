@@ -1,6 +1,6 @@
 {
   "outputDirectory": "dist",
-  "buildCommand": "npm run build:prod",
+  "buildCommand": "echo 'Using pre-built dist folder'",
   "rewrites": [
     {
       "source": "(.*)",
