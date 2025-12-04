@@ -377,6 +377,91 @@ exports.refreshToken = async (req, res, next) => {
   }
 };
 
+// Google OAuth signin/signup
+exports.googleAuth = async (req, res, next) => {
+  try {
+    const { idToken, accessToken, email, name, profileImage } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: "Email is required for Google authentication",
+      });
+    }
+
+    // Check if user exists
+    let user = await UserService.findByEmail(email);
+
+    if (user) {
+      // Update existing user
+      await UserService.update(user.id, {
+        name: name || user.name,
+        profile_image: profileImage || user.profile_image,
+        auth_provider: "google",
+        google_id: idToken,
+        email_verified: true,
+        last_login: new Date().toISOString(),
+      });
+
+      user = await UserService.findByEmail(email);
+    } else {
+      // Create new user
+      const userData = {
+        email,
+        name: name || email.split("@")[0],
+        profile_image: profileImage,
+        role: "parent",
+        status: "active",
+        auth_provider: "google",
+        google_id: idToken,
+        email_verified: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      user = await UserService.create(userData);
+    }
+
+    // Generate tokens
+    const tokens = generateTokens(user);
+
+    // Set refresh token cookie
+    res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // Log authentication
+    await AuditLogService.create({
+      admin_id: user.id,
+      action: "google_login",
+      target_type: "user",
+      target_id: user.id,
+      metadata: { email, auth_provider: "google" },
+    });
+
+    res.status(200).json({
+      success: true,
+      token: tokens.accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        profileImage: user.profile_image,
+      },
+    });
+  } catch (error) {
+    console.error("Google auth error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Google authentication failed",
+    });
+  }
+};
+
 // Firebase sync for social authentication
 exports.firebaseSync = async (req, res, next) => {
   try {

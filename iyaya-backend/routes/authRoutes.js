@@ -214,6 +214,11 @@ router.use(requestLogger);
 // Update children for parent user
 router.put("/profile/children", authenticate, authController.updateChildren);
 
+// User reports (authenticated users can create reports)
+const reportController = require("../controllers/reportController");
+router.post("/reports", authenticate, reportController.createReport);
+router.get("/reports/my", authenticate, reportController.getMyReports);
+
 // 7. Enhanced route definitions with proper validation
 router.post(
   "/register",
@@ -231,6 +236,15 @@ router.post(
   authController.login ||
     ((req, res) =>
       res.status(503).json({ error: "Login service unavailable" })),
+);
+
+// Google OAuth authentication
+router.post(
+  "/google",
+  authLimiter,
+  authController.googleAuth ||
+    ((req, res) =>
+      res.status(503).json({ error: "Google auth service unavailable" })),
 );
 
 // Firebase sync endpoint for social authentication

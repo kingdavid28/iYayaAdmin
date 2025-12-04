@@ -82,6 +82,13 @@ router.delete("/jobs/:jobId", adminController.deleteJob);
 // Audit logs
 router.get("/audit", adminController.listAuditLogs);
 
+// Reports management
+const reportController = require("../controllers/reportController");
+router.get("/reports", reportController.getReports);
+router.get("/reports/stats", reportController.getReportStats);
+router.get("/reports/:id", reportController.getReportById);
+router.patch("/reports/:id/status", reportController.updateReportStatus);
+
 // Children management (temporarily disabled)
 // router.get("/children", adminChildrenController.listChildren);
 // router.get("/children/:id", adminChildrenController.getChildById);

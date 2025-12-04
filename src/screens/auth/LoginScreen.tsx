@@ -14,6 +14,8 @@ import {
   Card,
 } from 'react-native-paper';
 import {AuthContext} from '../../contexts/AuthContext';
+import {useGoogleAuth, googleAuthService} from '../../services/googleAuthService';
+import {useEffect} from 'react';
 
 interface LoginScreenProps {
   navigation: any;
@@ -24,6 +26,32 @@ export default function LoginScreen({navigation}: LoginScreenProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const {login} = useContext(AuthContext);
+  const {request, response, promptAsync} = useGoogleAuth();
+
+  useEffect(() => {
+    if (response) {
+      handleGoogleResponse();
+    }
+  }, [response]);
+
+  const handleGoogleResponse = async () => {
+    setLoading(true);
+    try {
+      await googleAuthService.processAuthResponse(response);
+    } catch (error: any) {
+      Alert.alert('Error', 'Google sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      await promptAsync();
+    } catch (error: any) {
+      Alert.alert('Error', 'Could not start Google sign-in.');
+    }
+  };
 
   const handleLogin = async () => {
     // Basic front-end validation for empty inputs
@@ -107,6 +135,21 @@ export default function LoginScreen({navigation}: LoginScreenProps) {
                 {loading ? 'Signing In...' : 'Sign In'}
               </Button>
 
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <Button
+                mode="outlined"
+                onPress={handleGoogleSignIn}
+                icon="google"
+                style={styles.googleButton}
+                disabled={loading}>
+                Sign in with Google
+              </Button>
+
               <Button
                 mode="text"
                 onPress={() => navigation.navigate('AdminSignup')}
@@ -157,7 +200,26 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 8,
   },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    color: '#666',
+    fontSize: 14,
+  },
+  googleButton: {
+    borderColor: '#4285f4',
+    borderWidth: 1,
+  },
   linkButton: {
-    marginTop: 8,
+    marginTop: 16,
   },
 });

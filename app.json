@@ -2,6 +2,7 @@
   "expo": {
     "name": "iYaya Admin",
     "slug": "iyaya-admin",
+    "scheme": "iyayaadmin",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "sdkVersion"
@@ -59,6 +60,9 @@
       "EXPO_PUBLIC_DEV_BYPASS": "true",
       "EXPO_PUBLIC_FACEBOOK_APP_ID": "1976692839796722",
       "REACT_APP_GOOGLE_MAPS_API_KEY": "AIzaSyC9w7Mq4yZ-qi0vBbEjzethLH5qazqGucI",
+      "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "331902106096-hii2m9gobtqlbrf5tnjiga0bkmaklek7.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "331902106096-c760a65priggnn6jvmlv0bvesc3vos16.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "331902106096-cbtatvcvva8pheag3c992dpskihrm324.apps.googleusercontent.com",
       "EXPO_PUBLIC_ANALYTICS_KEY": "",
       "ENV": "development",
       "NODE_ENV": "development",
