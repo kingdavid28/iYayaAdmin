@@ -114,6 +114,7 @@ const getExpoGoOrigins = () => {
     'http://192.168.1.101:8083',
     'http://192.168.1.101:8084',
     'http://192.168.1.101:8085',
+    'http://192.168.1.5:8081',
   ];
 };
 
@@ -122,14 +123,7 @@ const corsOrigins = process.env.CORS_ORIGIN
   : getExpoGoOrigins();
 
 const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || corsOrigins.includes(origin) || 
-        origin.startsWith('http://localhost:') || 
-        origin.startsWith('http://127.0.0.1:')) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'), false);
-  },
+  origin: true, // Allow all origins for local development
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
