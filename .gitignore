@@ -1,5 +1,4 @@
 node_modules/
 .expo/
-dist/
 .vercel/
 iyaya-backend/serviceAccountKey.json
