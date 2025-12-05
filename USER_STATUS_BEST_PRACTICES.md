@@ -273,3 +273,10 @@ WHERE status = 'suspended'
 **Suspended**: Temporary, reversible, for investigation or minor issues
 **Banned**: Permanent, for severe violations or repeated offenses
 **Key**: Clear communication, fair process, thorough documentation
+
+
+Google OAuth Implementation : Added Gmail signin/signup functionality with backend endpoint, frontend service, and login screen integration; configured Google Cloud OAuth credentials (Web, Android, iOS Client IDs)
+
+User Reporting System : Implemented complete misconduct reporting feature with database schema, backend services/controllers, frontend screens, and navigation integration
+
+User Status Management Best Practices : Fully implemented suspension/ban system with duration tracking, auto-reactivation, professional email templates, escalation workflow, and audit logging
