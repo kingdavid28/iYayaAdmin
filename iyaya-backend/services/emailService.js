@@ -127,59 +127,48 @@ exports.sendPasswordResetEmail = async (email, resetToken) => {
 };
 
 // Send status update email (for admin actions)
-exports.sendStatusEmail = async ({ email, name, status, reason }) => {
+exports.sendStatusEmail = async ({ email, name, status, reason, suspensionEndDate, suspensionCount }) => {
   const transporter = createTransporter();
+  const { suspensionTemplate, bannedTemplate, reactivatedTemplate } = require('./emailTemplates');
 
-  const statusMessages = {
-    active: {
-      subject: "Your iYaya Account Has Been Activated",
-      message: `Hi ${name}, your iYaya account has been activated. You can now access all features of the platform.`,
-      color: "#4caf50",
-    },
-    suspended: {
-      subject: "Your iYaya Account Has Been Suspended",
-      message: `Hi ${name}, your iYaya account has been suspended${reason ? ` for the following reason: ${reason}` : "."}. Please contact support if you believe this is an error.`,
-      color: "#ff9800",
-    },
-    banned: {
-      subject: "Your iYaya Account Has Been Deactivated",
-      message: `Hi ${name}, your iYaya account has been deactivated${reason ? ` for the following reason: ${reason}` : "."}. If you believe this is an error, please contact support.`,
-      color: "#f44336",
-    },
-  };
-
-  const statusInfo = statusMessages[status] || {
-    subject: "Your iYaya Account Status Has Changed",
-    message: `Hi ${name}, your iYaya account status has been updated to: ${status}${reason ? ` for the following reason: ${reason}` : "."}`,
-    color: "#2196f3",
-  };
+  let template;
+  
+  if (status === 'suspended') {
+    template = suspensionTemplate({ name, reason, suspensionEndDate, suspensionCount });
+  } else if (status === 'banned') {
+    template = bannedTemplate({ name, reason });
+  } else if (status === 'active') {
+    template = reactivatedTemplate({ name });
+  } else {
+    // Fallback for other statuses
+    template = {
+      subject: 'Account Status Update - iYaya',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Account Status Update</h2>
+          <p>Hi ${name},</p>
+          <p>Your account status has been updated to: <strong>${status}</strong></p>
+          ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+          <p>Best regards,<br>iYaya Admin Team</p>
+        </div>
+      `,
+      text: `Hi ${name}, Your account status has been updated to: ${status}. ${reason ? `Reason: ${reason}` : ''}`,
+    };
+  }
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM,
+    from: process.env.EMAIL_FROM || 'noreply@iyaya.com',
     to: email,
-    subject: statusInfo.subject,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: ${statusInfo.color}; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h2 style="margin: 0; color: white;">Account Status Update</h2>
-        </div>
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-          <p style="margin: 0 0 20px 0; color: #333; font-size: 16px;">Hi ${name},</p>
-          <p style="margin: 0 0 20px 0; color: #666; line-height: 1.5;">${statusInfo.message}</p>
-
-          <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 0; color: #333; font-weight: bold;">Account Status: <span style="color: ${statusInfo.color}">${status.toUpperCase()}</span></p>
-            ${reason ? `<p style="margin: 10px 0 0 0; color: #666;"><strong>Reason:</strong> ${reason}</p>` : ""}
-          </div>
-
-          <p style="margin: 20px 0 0 0; color: #666; font-size: 14px;">If you have any questions about this status change, please contact our support team.</p>
-
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px; margin: 0;">iYaya - Connecting Families with Trusted Caregivers</p>
-        </div>
-      </div>
-    `,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Status email sent to ${email} for status: ${status}`);
+  } catch (error) {
+    console.error('Failed to send status email:', error);
+    throw error;
+  }
 };

@@ -768,10 +768,10 @@ exports.getUserById = async (req, res) => {
 exports.updateUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { status, reason } = req.body;
+    const { status, reason, durationDays } = req.body;
     const adminId = req.user.id;
 
-    const validStatuses = ["active", "suspended", "banned"];
+    const validStatuses = ["active", "suspended", "banned", "inactive"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -794,10 +794,24 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
 
-    const updatedUser = await UserService.updateStatus(userId, status, {
-      reason,
-      adminId,
-    });
+    // Calculate suspension end date if suspending
+    let suspensionEndDate = null;
+    let updates = { reason, adminId };
+    
+    if (status === "suspended") {
+      const days = durationDays || 7; // Default 7 days
+      suspensionEndDate = new Date();
+      suspensionEndDate.setDate(suspensionEndDate.getDate() + days);
+      
+      updates.suspension_end_date = suspensionEndDate.toISOString();
+      updates.suspension_count = (user.suspension_count || 0) + 1;
+      updates.last_suspension_at = new Date().toISOString();
+    } else if (status === "active") {
+      // Clear suspension data when reactivating
+      updates.suspension_end_date = null;
+    }
+
+    const updatedUser = await UserService.updateStatus(userId, status, updates);
 
     await UserStatusHistoryService.logChange({
       userId,
@@ -814,6 +828,9 @@ exports.updateUserStatus = async (req, res) => {
         from: user.status,
         to: status,
         reason,
+        durationDays: durationDays || null,
+        suspensionEndDate: suspensionEndDate?.toISOString() || null,
+        suspensionCount: updates.suspension_count || null,
       },
     });
 
@@ -824,6 +841,8 @@ exports.updateUserStatus = async (req, res) => {
         name: user.name,
         status: status,
         reason: reason,
+        suspensionEndDate: suspensionEndDate,
+        suspensionCount: updates.suspension_count,
       });
     } catch (emailError) {
       console.error("Failed to send status email:", emailError);
@@ -834,6 +853,7 @@ exports.updateUserStatus = async (req, res) => {
       success: true,
       data: normalizeUser(updatedUser),
       message: `User status updated to ${status}`,
+      suspensionEndDate: suspensionEndDate?.toISOString() || null,
     });
   } catch (error) {
     res.status(500).json(handleSupabaseError(error, "updateUserStatus"));
