@@ -19,22 +19,10 @@ const app = express();
 // ============================================
 // Security Middleware
 // ============================================
-// Security headers with custom CSP
+// Security headers (CSP disabled for React compatibility)
 app.use(
   helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
-      },
-    },
+    contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: 'same-site' },
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: { policy: 'same-origin' },
@@ -237,6 +225,10 @@ const mountRoutes = () => {
     apiRouter.use('/privacy', require('./routes/privacy'));
     apiRouter.use('/payments', require('./routes/paymentRoutes'));
     apiRouter.use('/admin', require('./routes/adminRoutes'));
+    
+    // Solana & Points routes (Week 3-5 features)
+    apiRouter.use('/points', require('./routes/pointsRoutes'));
+    apiRouter.use('/solana', require('./routes/solanaRoutes'));
     apiRouter.use(
       '/availability',
       authenticate,

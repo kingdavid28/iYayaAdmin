@@ -54,7 +54,7 @@ export default ({ config }) => {
       EXPO_PUBLIC_VERSION: process.env.EXPO_PUBLIC_VERSION || '1.0.0',
 
       // API Configuration
-      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || 'https://iyaya-backend-8k1q0bnbg-reycelrcentino-1494s-projects.vercel.app',
+      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000',
       EXPO_PUBLIC_API_HOST: process.env.EXPO_PUBLIC_API_HOST,
       EXPO_PUBLIC_API_PORT: process.env.EXPO_PUBLIC_API_PORT,
       EXPO_PUBLIC_API_TIMEOUT: process.env.EXPO_PUBLIC_API_TIMEOUT || '30000',

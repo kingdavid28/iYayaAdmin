@@ -25,6 +25,7 @@ export type ManagementRoutes = {
   NotificationsManagement: undefined;
   AnalyticsManagement: undefined;
   PaymentsManagement: undefined;
+  PointsManagement: undefined; // Added Points Management
 };
 
 export default function ManagementHubScreen() {
@@ -124,6 +125,13 @@ export default function ManagementHubScreen() {
       icon: 'payment',
       color: '#f44336',
       route: 'PaymentsManagement'
+    },
+    {
+      title: 'Points System',
+      description: 'Caregiver points & tiers',
+      icon: 'stars',
+      color: '#ff5722',
+      route: 'PointsManagement'
     },
   ];
 

@@ -53,10 +53,7 @@ export const resolveDevHost = (): string | undefined => {
   return normalizeHostInput(host, port);
 };
 
-const rawBaseUrl =
-  getEnvVar('EXPO_PUBLIC_API_URL') ??
-  (__DEV__ ? resolveDevHost() : undefined) ??
-  'https://iyaya-backend-8k1q0bnbg-reycelrcentino-1494s-projects.vercel.app';
+const rawBaseUrl = getEnvVar('EXPO_PUBLIC_API_URL') || 'http://localhost:5000';
 
 export const apiBaseUrl = rawBaseUrl.replace(/\/$/, '');
 

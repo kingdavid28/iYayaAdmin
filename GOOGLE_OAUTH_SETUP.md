@@ -47,12 +47,15 @@
 
 ### For Android:
 - **Application type**: Android
-- **Name**: iYaya Android
-- **Package name**: `com.iyayaadmin` (from your app.json)
+- **Name**: iYaya Admin Android
+- **Package name**: `com.kingdavid28.iyayaadmin` (from your app.json)
 - **SHA-1 certificate fingerprint**: Get it by running:
   ```bash
-  cd android
-  ./gradlew signingReport
+  # For Expo development
+  keytool -keystore ~/.android/debug.keystore -list -v -alias androiddebugkey -storepass android -keypass android
+  
+  # For production (if you have a release keystore)
+  keytool -keystore path/to/release.keystore -list -v
   ```
   Copy the SHA-1 from the output
 - Click **Create**
@@ -60,8 +63,8 @@
 
 ### For iOS:
 - **Application type**: iOS
-- **Name**: iYaya iOS
-- **Bundle ID**: `com.iyayaadmin` (from your app.json)
+- **Name**: iYaya Admin iOS
+- **Bundle ID**: `com.kingdavid28.iyayaadmin` (from your app.json)
 - Click **Create**
 - Copy **Client ID**
 

@@ -20,6 +20,7 @@ import ChildrenManagementScreen from '../screens/management/ChildrenManagementSc
 import NotificationsManagementScreen from '../screens/management/NotificationsManagementScreen';
 import AnalyticsManagementScreen from '../screens/management/AnalyticsManagementScreen';
 import PaymentsManagementScreen from '../screens/management/PaymentsManagementScreen';
+import PointsManagementScreen from '../screens/management/PointsManagementScreen'; // Added Points Management
 import ReportsScreen from '../screens/reports/ReportsScreen';
 import ReportDetailScreen from '../screens/reports/ReportDetailScreen';
 import {Icon} from 'react-native-elements';
@@ -87,6 +88,11 @@ function ManagementStackNavigator() {
         name="PaymentsManagement"
         component={PaymentsManagementScreen}
         options={{title: 'Payments Management'}}
+      />
+      <ManagementStack.Screen
+        name="PointsManagement"
+        component={PointsManagementScreen}
+        options={{title: 'Points Management'}}
       />
     </ManagementStack.Navigator>
   );

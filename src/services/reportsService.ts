@@ -1,4 +1,4 @@
-import api from '../config/api';
+import { adminApi } from './apiService';
 
 export interface Report {
   id: string;
@@ -40,12 +40,12 @@ export const reportsService = {
     severity?: string;
     search?: string;
   }) {
-    const response = await api.get('/admin/reports', { params });
+    const response = await adminApi.get('/admin/reports', params);
     return response.data;
   },
 
   async getReportById(id: string) {
-    const response = await api.get(`/admin/reports/${id}`);
+    const response = await adminApi.get(`/admin/reports/${id}`);
     return response.data;
   },
 
@@ -60,7 +60,7 @@ export const reportsService = {
     booking_id?: string;
     job_id?: string;
   }) {
-    const response = await api.post('/auth/reports', data);
+    const response = await adminApi.post('/auth/reports', data);
     return response.data;
   },
 
@@ -69,17 +69,17 @@ export const reportsService = {
     adminNotes?: string;
     resolution?: string;
   }) {
-    const response = await api.patch(`/admin/reports/${id}/status`, data);
+    const response = await adminApi.patch(`/admin/reports/${id}/status`, data);
     return response.data;
   },
 
   async getReportStats() {
-    const response = await api.get('/admin/reports/stats');
+    const response = await adminApi.get('/admin/reports/stats');
     return response.data;
   },
 
   async getMyReports(params?: { page?: number; limit?: number }) {
-    const response = await api.get('/auth/reports/my', { params });
+    const response = await adminApi.get('/auth/reports/my', params);
     return response.data;
   },
 };

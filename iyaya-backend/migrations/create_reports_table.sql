@@ -71,3 +71,7 @@ CREATE TRIGGER user_reports_updated_at
   BEFORE UPDATE ON user_reports
   FOR EACH ROW
   EXECUTE FUNCTION update_user_reports_updated_at();
+
+-- Sample Data Insertion
+# Run this in Supabase SQL Editor
+# File: iyaya-backend/migrations/create_reports_table.sql

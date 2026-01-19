@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "expo/AppEntry.js",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --clear --offline",
+    "start:dev": "cross-env NODE_ENV=development expo start --clear --offline",
+    "start:prod": "cross-env NODE_ENV=production expo start --clear --offline",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
@@ -54,6 +56,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.16.0",
     "@typescript-eslint/parser": "^8.16.0",
+    "baseline-browser-mapping": "^2.9.15",
     "cross-env": "^10.1.0",
     "dotenv": "^16.4.5",
     "eslint": "^9.17.0",
