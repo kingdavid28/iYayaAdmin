@@ -2,9 +2,10 @@
   "outputDirectory": "dist",
   "buildCommand": "echo 'Using pre-built dist folder'",
   "installCommand": "echo 'Skipping install'",
+  "framework": null,
   "rewrites": [
     {
-      "source": "(.*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
